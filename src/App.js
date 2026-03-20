@@ -69,9 +69,6 @@ const POST_COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes
 const DISAPPEAR_MS = 24 * 60 * 60 * 1000; // 24 hours
 const EDIT_WINDOW_MS = 5 * 60 * 1000; // 5 mins to edit post
 
-const ADJECTIVES = ["Silent","Whispering","Hidden","Midnight","Phantom","Shadow","Velvet","Crimson","Azure","Golden","Silver","Cosmic","Mystic","Neon","Lunar","Solar","Arctic","Storm","Thunder","Crystal","Brave","Swift","Clever","Witty","Calm","Bold","Fierce","Gentle"];
-const NOUNS = ["Fox","Wolf","Raven","Phoenix","Serpent","Falcon","Owl","Bear","Tiger","Lynx","Hawk","Panda","Otter","Jaguar","Viper","Eagle","Poet","Ghost","Rebel","Sage","Nomad","Oracle","Cipher","Specter","Wraith","Monk","Bard","Scout","Ranger","Knight","Rogue","Mystic"];
-
 
 function getDeviceFingerprint() {
   const nav = window.navigator;
