@@ -8,15 +8,15 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { initializeApp } from "firebase/app";
 import {
-  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  getAuth, signInWithEmailAndPassword,
   signOut, onAuthStateChanged,
 } from "firebase/auth";
 import {
   getFirestore, collection, doc, addDoc, getDoc, getDocs, updateDoc,
   deleteDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp,
-  increment, arrayUnion, arrayRemove, Timestamp, setDoc, writeBatch, startAfter, deleteField,
+  increment, arrayUnion, arrayRemove, Timestamp, setDoc, writeBatch, startAfter,
 } from "firebase/firestore";
-import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
+// App Check disabled for v2 development
 
 // ─── FIREBASE CONFIG ──────────────────────────────────────────────────────────
 const firebaseConfig = {
@@ -66,20 +66,11 @@ const DEFAULT_BANNED_KEYWORDS = [
 
 
 const POST_COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes
-const AUTO_BAN_THRESHOLD = 5; // reports before auto-ban
-const AUTO_DELETE_THRESHOLD = 10; // reports before auto-delete
-const EDIT_WINDOW_MS = 5 * 60 * 1000; // 5 mins to edit post
 const DISAPPEAR_MS = 24 * 60 * 60 * 1000; // 24 hours
+const EDIT_WINDOW_MS = 5 * 60 * 1000; // 5 mins to edit post
 
 const ADJECTIVES = ["Silent","Whispering","Hidden","Midnight","Phantom","Shadow","Velvet","Crimson","Azure","Golden","Silver","Cosmic","Mystic","Neon","Lunar","Solar","Arctic","Storm","Thunder","Crystal","Brave","Swift","Clever","Witty","Calm","Bold","Fierce","Gentle"];
 const NOUNS = ["Fox","Wolf","Raven","Phoenix","Serpent","Falcon","Owl","Bear","Tiger","Lynx","Hawk","Panda","Otter","Jaguar","Viper","Eagle","Poet","Ghost","Rebel","Sage","Nomad","Oracle","Cipher","Specter","Wraith","Monk","Bard","Scout","Ranger","Knight","Rogue","Mystic"];
-
-function generateUsername() {
-  const adj = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
-  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
-  const num = Math.floor(Math.random() * 9000) + 1000;
-  return `${adj}${noun}${num}`;
-}
 
 
 function getDeviceFingerprint() {
