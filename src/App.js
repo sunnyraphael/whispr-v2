@@ -16,6 +16,7 @@ import {
   deleteDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp,
   increment, arrayUnion, arrayRemove, Timestamp, setDoc, writeBatch, startAfter,
 } from "firebase/firestore";
+import { getMessaging, getToken, onMessage } from "firebase/messaging";
 // App Check disabled for v2 development
 
 // ─── FIREBASE CONFIG ──────────────────────────────────────────────────────────
@@ -32,6 +33,29 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+
+// ─── FIREBASE CLOUD MESSAGING ─────────────────────────────────────────────────
+// Get VAPID key: Firebase Console → Project Settings → Cloud Messaging → Web Push certificates
+const VAPID_KEY = "BNIJJi-YniHrYsO5IUSUfbiB-C7wA37ZCcZtVGHwpG-nvYniQEvz7olXUH18W0Rl7U0iKan1UN0FyHyOD6RLgd8"; // 🔑 Replace with your actual VAPID key
+let messaging = null;
+try { messaging = getMessaging(app); } catch (_) {}
+
+async function registerForPushNotifications() {
+  if (!messaging || !("Notification" in window)) return;
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") return;
+    const token = await getToken(messaging, { vapidKey: VAPID_KEY });
+    if (!token) return;
+    const authToken = await auth.currentUser?.getIdToken();
+    if (!authToken) return;
+    await fetch("https://web-production-549eb.up.railway.app/save-fcm-token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${authToken}` },
+      body: JSON.stringify({ token }),
+    });
+  } catch (_) {} // push is a bonus — never break the app
+}
 
 // ─── APP CHECK (reCAPTCHA v3) ─────────────────────────────────────────────────
 // Prevents external scripts from abusing your Firebase project.
@@ -585,6 +609,41 @@ function StyleTag({ theme }) {
   return <style dangerouslySetInnerHTML={{ __html: buildStyles(theme) }} />;
 }
 function Spinner() { return <span className="spinner" />; }
+
+// ─── FOREGROUND PUSH TOAST ────────────────────────────────────────────────────
+function useForegroundPush() {
+  const [toast, setToast] = useState(null);
+  useEffect(() => {
+    if (!messaging) return;
+    const unsub = onMessage(messaging, (payload) => {
+      setToast({ title: payload.notification?.title || "Whispr", body: payload.notification?.body || "" });
+      setTimeout(() => setToast(null), 4500);
+    });
+    return unsub;
+  }, []);
+  return toast;
+}
+
+function PushToast({ toast }) {
+  if (!toast) return null;
+  return (
+    <div style={{
+      position: "fixed", bottom: 80, left: "50%", transform: "translateX(-50%)",
+      background: "var(--surface2)", border: "1px solid var(--border)",
+      borderRadius: 14, padding: "14px 20px", zIndex: 9999,
+      boxShadow: "var(--shadow)", minWidth: 260, maxWidth: "90vw",
+      display: "flex", gap: 12, alignItems: "flex-start",
+      animation: "fadeIn 0.3s ease",
+    }}>
+      <div style={{ fontSize: 22 }}>🔔</div>
+      <div>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>{toast.title}</div>
+        <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.5 }}>{toast.body}</div>
+      </div>
+    </div>
+  );
+}
+
 function Avatar({ username }) {
   const initials = username ? username.slice(0, 2).toUpperCase() : "?";
   const hue = username ? username.split("").reduce((a, c) => a + c.charCodeAt(0), 0) % 360 : 200;
@@ -788,7 +847,7 @@ function AuthPage({ theme, toggleTheme, onSignupSuccess }) {
         <div className="auth-field">
           <label className="auth-label">Password</label>
           <input className="auth-input" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" onKeyDown={e => e.key === "Enter" && handleAuth()} />
-          {mode === "signup" && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>⚠️ Remember your email and password. If you forget your password, use "Forgot password?" on the login screen.</div>}
+          {mode === "signup" && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>⚠️ Remember your email and password — if you forget them, contact support via the 💬 button.</div>}
         </div>
         {mode === "signup" && (
           <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12, lineHeight: 1.6 }}>
@@ -799,29 +858,7 @@ function AuthPage({ theme, toggleTheme, onSignupSuccess }) {
         <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center", marginTop: 8 }} onClick={handleAuth} disabled={loading}>
           {loading ? <Spinner /> : mode === "signup" ? "Create Anonymous Account" : "Sign In"}
         </button>
-        {mode === "login" && (
-          <div style={{ textAlign: "center", marginTop: 12 }}>
-            <button
-              onClick={async () => {
-                const emailVal = email.trim().toLowerCase();
-                if (!emailVal) { setError("Enter your email address first, then tap Forgot Password."); return; }
-                try {
-                  const { sendPasswordResetEmail } = await import("firebase/auth");
-                  await sendPasswordResetEmail(auth, emailVal);
-                  setError("");
-                  alert("✅ Password reset link sent! Check your inbox (and spam folder).");
-                } catch (e) {
-                  if (e.code === "auth/user-not-found") setError("No account found with that email.");
-                  else if (e.code === "auth/invalid-email") setError("Invalid email address.");
-                  else setError("Failed to send reset email. Try again.");
-                }
-              }}
-              style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 12, textDecoration: "underline" }}
-            >
-              Forgot password?
-            </button>
-          </div>
-        )}
+
         <div style={{ textAlign: "center", marginTop: 16, fontSize: 13, color: "var(--muted)" }}>
           {mode === "login" ? "New here?" : "Already have an account?"}{" "}
           <button onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError(""); setTermsAccepted(false); setEmail(""); setPassword(""); }} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontWeight: 600 }}>
@@ -2366,6 +2403,7 @@ function BookmarksPage({ currentUser, bookmarks, allCategories, bannedWords, isA
 
 // ─── MAIN FEED ────────────────────────────────────────────────────────────────
 function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
+  const pushToast = useForegroundPush();
   const [posts, setPosts] = useState([]);
   const [section, setSection] = useState("latest");
   const [feedTab, setFeedTab] = useState("newest");
@@ -2484,20 +2522,17 @@ function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
     if (!firstDoc || loadingMore) return;
     setLoadingMore(true);
     try {
-      // Query in ascending order from firstDoc to get posts newer than current page
+      const now = Date.now();
+      // Query ascending from firstDoc — this gives us posts NEWER than current page
       let q;
       if (activeCategory) q = query(collection(db, "posts"), where("deleted", "==", false), where("category", "==", activeCategory), orderBy("createdAt", "asc"), startAfter(firstDoc), limit(PAGE_SIZE + 1));
       else q = query(collection(db, "posts"), where("deleted", "==", false), orderBy("createdAt", "asc"), startAfter(firstDoc), limit(PAGE_SIZE + 1));
       const snap = await getDocs(q);
-      const now = Date.now();
-      const docs = snap.docs.reverse(); // flip back to newest-first
-      const items = docs.slice(0, PAGE_SIZE)
-        .map(d => ({ id: d.id, ...d.data() }))
-        .filter(p => !p.disappearing || (now - (p.createdAt?.toDate?.()?.getTime?.() || 0)) < DISAPPEAR_MS);
-      if (items.length === 0) {
-        // Already at the newest page — reload from top
-        const fresh = buildBaseQuery(activeCategory);
-        const freshSnap = await getDocs(fresh);
+      const rawDocs = snap.docs;
+
+      if (rawDocs.length === 0) {
+        // Nothing newer — we are already at the top, reload fresh from top
+        const freshSnap = await getDocs(buildBaseQuery(activeCategory));
         const freshDocs = freshSnap.docs;
         const freshItems = freshDocs.slice(0, PAGE_SIZE)
           .map(d => ({ id: d.id, ...d.data() }))
@@ -2509,11 +2544,18 @@ function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
         setHasNewer(false);
         setPageNum(1);
       } else {
+        // rawDocs is ascending (oldest→newest). Reverse so UI shows newest first.
+        const hasEvenNewer = rawDocs.length > PAGE_SIZE;
+        const pageDocs = rawDocs.slice(0, PAGE_SIZE).reverse(); // newest-first
+        const items = pageDocs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(p => !p.disappearing || (now - (p.createdAt?.toDate?.()?.getTime?.() || 0)) < DISAPPEAR_MS);
         setPosts(items);
-        setFirstDoc(docs[0] || null);
-        setLastDoc(docs[Math.min(PAGE_SIZE - 1, docs.length - 1)] || null);
-        setHasOlder(true);
-        setHasNewer(docs.length > PAGE_SIZE);
+        // After reverse: pageDocs[0] = newest, pageDocs[last] = oldest
+        setFirstDoc(pageDocs[0] || null);
+        setLastDoc(pageDocs[pageDocs.length - 1] || null);
+        setHasNewer(hasEvenNewer);
+        setHasOlder(true); // we navigated forward so there are definitely older posts
         setPageNum(n => Math.max(1, n - 1));
       }
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -2743,6 +2785,7 @@ function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
         </div>
       )}
       {openPost && <PostModal post={openPost} currentUser={currentUser} onClose={() => setOpenPost(null)} allCategories={allCategories} bannedWords={bannedWords} isAdmin={isAdmin} />}
+      <PushToast toast={pushToast} />
     </div>
   );
 }
@@ -2809,6 +2852,7 @@ export default function App() {
               setProfile(data);
             }
             setBanMessage(null); // Instantly lets them back in if admin unbans while active
+            registerForPushNotifications(); // request push permission silently after login
           }
           setLoading(false);
         });
