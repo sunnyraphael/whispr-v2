@@ -1658,18 +1658,65 @@ function AdminPanel({ currentUser, allCategories, setAllCategories }) {
   const [newWhitelistFp, setNewWhitelistFp] = useState("");
   const [newWhitelistNote, setNewWhitelistNote] = useState("");
 
-  useEffect(() => {
-    const u1 = onSnapshot(query(collection(db, "reports"), orderBy("createdAt", "desc")), snap => setReports(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const u2 = onSnapshot(query(collection(db, "posts"), where("deleted", "==", false), orderBy("createdAt", "desc"), limit(50)), snap => setPosts(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const u3 = onSnapshot(collection(db, "users"), snap => setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const u4 = onSnapshot(query(collection(db, "announcements"), orderBy("createdAt", "desc")), snap => setAnnouncements(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const u5 = onSnapshot(query(collection(db, "support"), orderBy("createdAt", "desc")), snap => setSupportMsgs(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const u6 = onSnapshot(collection(db, "deviceBans"), snap => setDeviceBans(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    const u7 = onSnapshot(collection(db, "deviceWhitelist"), snap => setDeviceWhitelist(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
-    getDoc(doc(db, "settings", "keywords")).then(snap => { if (snap.exists() && snap.data().words) setBannedWords(snap.data().words); });
-    getDoc(doc(db, "settings", "maintenance")).then(snap => { if (snap.exists()) setMaintenance(snap.data().enabled || false); });
-    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); };
+  // ── Lazy-load admin data per tab — massive read saving ──────────────────────
+  // Previously: 7 live listeners open simultaneously = hundreds of reads/minute
+  // Now: each tab fetches its own data once when opened, with a manual refresh
+  const [adminLoading, setAdminLoading] = useState(false);
+  const loadedTabs = useRef(new Set()); // track which tabs have been loaded
+
+  const loadTabData = useCallback(async (tabName, force = false) => {
+    if (!force && loadedTabs.current.has(tabName)) return; // already loaded
+    setAdminLoading(true);
+    try {
+      if (tabName === "dashboard" || tabName === "reports") {
+        const snap = await getDocs(query(collection(db, "reports"), orderBy("createdAt", "desc")));
+        setReports(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }
+      if (tabName === "dashboard" || tabName === "posts") {
+        const snap = await getDocs(query(collection(db, "posts"), where("deleted", "==", false), orderBy("createdAt", "desc"), limit(50)));
+        setPosts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }
+      if (tabName === "dashboard" || tabName === "users" || tabName === "duplicates") {
+        const snap = await getDocs(collection(db, "users"));
+        setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }
+      if (tabName === "announcements") {
+        const snap = await getDocs(query(collection(db, "announcements"), orderBy("createdAt", "desc")));
+        setAnnouncements(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }
+      if (tabName === "support") {
+        const snap = await getDocs(query(collection(db, "support"), orderBy("createdAt", "desc")));
+        setSupportMsgs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }
+      if (tabName === "devices") {
+        const snap = await getDocs(collection(db, "deviceBans"));
+        setDeviceBans(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }
+      if (tabName === "whitelist") {
+        const snap = await getDocs(collection(db, "deviceWhitelist"));
+        setDeviceWhitelist(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }
+      if (tabName === "keywords") {
+        const snap = await getDoc(doc(db, "settings", "keywords"));
+        if (snap.exists() && snap.data().words) setBannedWords(snap.data().words);
+      }
+      if (tabName === "categories") {
+        // categories already loaded from Feed — nothing extra needed
+      }
+      if (tabName === "dashboard") {
+        const snap = await getDoc(doc(db, "settings", "maintenance"));
+        if (snap.exists()) setMaintenance(snap.data().enabled || false);
+        // Also load announcements for dashboard
+        const aSnap = await getDocs(query(collection(db, "announcements"), orderBy("createdAt", "desc")));
+        setAnnouncements(aSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }
+      loadedTabs.current.add(tabName);
+    } finally { setAdminLoading(false); }
   }, []);
+
+  // Load dashboard on mount, then load each tab when switched to
+  useEffect(() => { loadTabData("dashboard"); }, [loadTabData]);
+  useEffect(() => { loadTabData(tab); }, [tab, loadTabData]);
 
   const saveKeywords = async (words) => { await setDoc(doc(db, "settings", "keywords"), { words }); };
   const toggleMaintenance = async () => {
@@ -1771,9 +1818,19 @@ function AdminPanel({ currentUser, allCategories, setAllCategories }) {
 
   return (
     <div className="admin-page fade-in">
-      <div className="admin-header">
-        <div className="admin-title">⚙️ Admin Panel</div>
-        <div className="admin-subtitle">Logged in as {currentUser.username}</div>
+      <div className="admin-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <div className="admin-title">⚙️ Admin Panel</div>
+          <div className="admin-subtitle">Logged in as {currentUser.username}</div>
+        </div>
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={() => { loadedTabs.current.delete(tab); loadTabData(tab, true); }}
+          disabled={adminLoading}
+          style={{ alignSelf: "center" }}
+        >
+          {adminLoading ? <Spinner /> : "🔄 Refresh"}
+        </button>
       </div>
       <div className="stats-grid">
         <div className="stat-card"><div className="stat-num" style={{ color: "var(--accent)" }}>{posts.length}</div><div className="stat-label">Total Posts</div></div>
@@ -2472,13 +2529,20 @@ function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
     return query(collection(db, "posts"), where("deleted", "==", false), orderBy("createdAt", "desc"), limit(PAGE_SIZE + 1));
   }, []);
 
-  // ── Live listener for current page — likes/reactions/new posts update instantly ─
-  useEffect(() => {
+  // ── Fetch feed with getDocs (saves reads vs onSnapshot) ────────────────────
+  // onSnapshot was draining quota — it re-read ALL posts every time any field
+  // changed (likes, reactions etc). Now we fetch once and refresh manually.
+  const [newPostsAvailable, setNewPostsAvailable] = useState(false);
+  const latestPostCreatedAt = useRef(null); // track newest post timestamp
+
+  const fetchFeed = useCallback(async (cat = activeCategory) => {
     setLoading(true);
     setHasNewer(false);
     setPageNum(1);
-    const q = buildBaseQuery(activeCategory);
-    const unsub = onSnapshot(q, snap => {
+    setNewPostsAvailable(false);
+    try {
+      const q = buildBaseQuery(cat);
+      const snap = await getDocs(q);
       const now = Date.now();
       const docs = snap.docs;
       const items = docs.slice(0, PAGE_SIZE)
@@ -2488,10 +2552,38 @@ function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
       setFirstDoc(docs[0] || null);
       setLastDoc(docs[PAGE_SIZE - 1] || null);
       setHasOlder(docs.length > PAGE_SIZE);
-      setLoading(false);
-    }, () => setLoading(false));
-    return () => unsub();
+      // Remember the newest post's timestamp so we can detect new posts
+      if (docs[0]) latestPostCreatedAt.current = docs[0].data().createdAt;
+    } finally { setLoading(false); }
   }, [activeCategory, buildBaseQuery]);
+
+  // Initial load and reload when category changes
+  useEffect(() => { fetchFeed(activeCategory); }, [activeCategory]);
+
+  // Poll every 60s to check if new posts arrived — much cheaper than onSnapshot
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const q = query(
+          collection(db, "posts"),
+          where("deleted", "==", false),
+          ...(activeCategory ? [where("category", "==", activeCategory)] : []),
+          orderBy("createdAt", "desc"),
+          limit(1)
+        );
+        const snap = await getDocs(q);
+        if (snap.docs.length > 0 && latestPostCreatedAt.current) {
+          const newest = snap.docs[0].data().createdAt;
+          // Compare timestamps — if newer post exists, show the refresh banner
+          if (newest && latestPostCreatedAt.current &&
+              newest.seconds > latestPostCreatedAt.current.seconds) {
+            setNewPostsAvailable(true);
+          }
+        }
+      } catch (_) {}
+    }, 60000); // check every 60 seconds — costs 1 read per user per minute
+    return () => clearInterval(interval);
+  }, [activeCategory]);
 
   // ── Load OLDER posts (next page going back in time) ─────────────────────────
   const loadOlderPosts = async () => {
@@ -2517,13 +2609,13 @@ function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
     } finally { setLoadingMore(false); }
   };
 
-  // ── Load NEWER posts (previous page going forward in time) ──────────────────
+  // ── Load NEWER posts (go forward in time toward page 1) ────────────────────
   const loadNewerPosts = async () => {
     if (!firstDoc || loadingMore) return;
     setLoadingMore(true);
     try {
       const now = Date.now();
-      // Query ascending from firstDoc — this gives us posts NEWER than current page
+      // Query ascending starting after firstDoc — gives posts newer than current page
       let q;
       if (activeCategory) q = query(collection(db, "posts"), where("deleted", "==", false), where("category", "==", activeCategory), orderBy("createdAt", "asc"), startAfter(firstDoc), limit(PAGE_SIZE + 1));
       else q = query(collection(db, "posts"), where("deleted", "==", false), orderBy("createdAt", "asc"), startAfter(firstDoc), limit(PAGE_SIZE + 1));
@@ -2531,34 +2623,23 @@ function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
       const rawDocs = snap.docs;
 
       if (rawDocs.length === 0) {
-        // Nothing newer — we are already at the top, reload fresh from top
-        const freshSnap = await getDocs(buildBaseQuery(activeCategory));
-        const freshDocs = freshSnap.docs;
-        const freshItems = freshDocs.slice(0, PAGE_SIZE)
-          .map(d => ({ id: d.id, ...d.data() }))
-          .filter(p => !p.disappearing || (now - (p.createdAt?.toDate?.()?.getTime?.() || 0)) < DISAPPEAR_MS);
-        setPosts(freshItems);
-        setFirstDoc(freshDocs[0] || null);
-        setLastDoc(freshDocs[PAGE_SIZE - 1] || null);
-        setHasOlder(freshDocs.length > PAGE_SIZE);
-        setHasNewer(false);
-        setPageNum(1);
+        // Already at the newest page — just reload from top fresh
+        await fetchFeed(activeCategory);
       } else {
-        // rawDocs is ascending (oldest→newest). Reverse so UI shows newest first.
+        // rawDocs: oldest → newest (asc). Reverse → newest → oldest for display.
         const hasEvenNewer = rawDocs.length > PAGE_SIZE;
-        const pageDocs = rawDocs.slice(0, PAGE_SIZE).reverse(); // newest-first
+        const pageDocs = rawDocs.slice(0, PAGE_SIZE).reverse();
         const items = pageDocs
           .map(d => ({ id: d.id, ...d.data() }))
           .filter(p => !p.disappearing || (now - (p.createdAt?.toDate?.()?.getTime?.() || 0)) < DISAPPEAR_MS);
         setPosts(items);
-        // After reverse: pageDocs[0] = newest, pageDocs[last] = oldest
-        setFirstDoc(pageDocs[0] || null);
-        setLastDoc(pageDocs[pageDocs.length - 1] || null);
+        setFirstDoc(pageDocs[0] || null);              // newest doc on this page
+        setLastDoc(pageDocs[pageDocs.length - 1] || null); // oldest doc on this page
         setHasNewer(hasEvenNewer);
-        setHasOlder(true); // we navigated forward so there are definitely older posts
+        setHasOlder(true);
         setPageNum(n => Math.max(1, n - 1));
+        window.scrollTo({ top: 0, behavior: "smooth" });
       }
-      window.scrollTo({ top: 0, behavior: "smooth" });
     } finally { setLoadingMore(false); }
   };
 
@@ -2758,6 +2839,21 @@ function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
               );
               return (
                 <>
+                  {/* New posts banner — shows when polling detects new content */}
+                  {newPostsAvailable && (
+                    <button
+                      onClick={() => fetchFeed(activeCategory)}
+                      style={{
+                        width: "100%", marginBottom: 12, padding: "10px",
+                        background: "var(--accent)", color: "#fff", border: "none",
+                        borderRadius: "var(--radius-sm)", cursor: "pointer",
+                        fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 13,
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      }}
+                    >
+                      ✨ New posts available — tap to refresh
+                    </button>
+                  )}
                   {/* ↑ Load newer — at the TOP, mobile-friendly */}
                   {hasNewer && (
                     <button className="btn btn-ghost" style={{ width: "100%", justifyContent: "center", marginBottom: 12 }}
