@@ -693,8 +693,10 @@ function AuthPage({ theme, toggleTheme, onSignupSuccess }) {
   const [showTerms, setShowTerms] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
 
+  const [blockedFp, setBlockedFp] = useState(null); // stores fp when blocked so user can share it with admin
+
   const doSignup = async () => {
-    setError(""); setLoading(true);
+    setError(""); setBlockedFp(null); setLoading(true);
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) { setError("Please enter an email address."); setLoading(false); return; }
     if (password.length < 6) { setError("Password must be at least 6 characters."); setLoading(false); return; }
@@ -716,7 +718,12 @@ function AuthPage({ theme, toggleTheme, onSignupSuccess }) {
       const result = await response.json();
 
       if (!response.ok) {
-        setError(result.detail || "Something went wrong. Please try again.");
+        // If blocked due to device, show fingerprint so user can contact admin to whitelist
+        const msg = result.detail || "Something went wrong. Please try again.";
+        if (msg.toLowerCase().includes("device") || msg.toLowerCase().includes("account already")) {
+          setBlockedFp(fp);
+        }
+        setError(msg);
         setLoading(false); return;
       }
 
@@ -761,7 +768,18 @@ function AuthPage({ theme, toggleTheme, onSignupSuccess }) {
         <button className="theme-btn" style={{ marginLeft: "auto", display: "flex", marginBottom: 12 }} onClick={toggleTheme}>{theme === "dark" ? "☀️" : "🌙"}</button>
         <div className="auth-logo">wh<span style={{ color: "var(--accent)" }}>i</span>spr</div>
         <div className="auth-sub">{mode === "signup" ? "Create your anonymous account." : "Welcome back. Your secret is safe."}</div>
-        {error && <div className="alert alert-error">{error}</div>}
+        {error && (
+          <div className="alert alert-error">
+            {error}
+            {blockedFp && (
+              <div style={{ marginTop: 10, padding: 10, background: "rgba(0,0,0,0.2)", borderRadius: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Your device code — share this with the admin to get unblocked:</div>
+                <div style={{ fontFamily: "monospace", fontSize: 11, wordBreak: "break-all", color: "var(--accent2)" }}>{blockedFp}</div>
+                <button onClick={() => { navigator.clipboard?.writeText(blockedFp); alert("Copied!"); }} style={{ marginTop: 6, background: "none", border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 6, padding: "3px 10px", fontSize: 11, cursor: "pointer" }}>📋 Copy Code</button>
+              </div>
+            )}
+          </div>
+        )}
         {mode === "signup" && <div className="alert alert-info">✨ Use any email and a password of your choice. You'll get a random anonymous display name — no one will know it's you.</div>}
         <div className="auth-field">
           <label className="auth-label">Email</label>
@@ -770,7 +788,7 @@ function AuthPage({ theme, toggleTheme, onSignupSuccess }) {
         <div className="auth-field">
           <label className="auth-label">Password</label>
           <input className="auth-input" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" onKeyDown={e => e.key === "Enter" && handleAuth()} />
-          {mode === "signup" && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>⚠️ Remember your email and password — if you forget them your account cannot be recovered.</div>}
+          {mode === "signup" && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>⚠️ Remember your email and password. If you forget your password, use "Forgot password?" on the login screen.</div>}
         </div>
         {mode === "signup" && (
           <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12, lineHeight: 1.6 }}>
@@ -781,7 +799,30 @@ function AuthPage({ theme, toggleTheme, onSignupSuccess }) {
         <button className="btn btn-primary" style={{ width: "100%", justifyContent: "center", marginTop: 8 }} onClick={handleAuth} disabled={loading}>
           {loading ? <Spinner /> : mode === "signup" ? "Create Anonymous Account" : "Sign In"}
         </button>
-        <div style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: "var(--muted)" }}>
+        {mode === "login" && (
+          <div style={{ textAlign: "center", marginTop: 12 }}>
+            <button
+              onClick={async () => {
+                const emailVal = email.trim().toLowerCase();
+                if (!emailVal) { setError("Enter your email address first, then tap Forgot Password."); return; }
+                try {
+                  const { sendPasswordResetEmail } = await import("firebase/auth");
+                  await sendPasswordResetEmail(auth, emailVal);
+                  setError("");
+                  alert("✅ Password reset link sent! Check your inbox (and spam folder).");
+                } catch (e) {
+                  if (e.code === "auth/user-not-found") setError("No account found with that email.");
+                  else if (e.code === "auth/invalid-email") setError("Invalid email address.");
+                  else setError("Failed to send reset email. Try again.");
+                }
+              }}
+              style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 12, textDecoration: "underline" }}
+            >
+              Forgot password?
+            </button>
+          </div>
+        )}
+        <div style={{ textAlign: "center", marginTop: 16, fontSize: 13, color: "var(--muted)" }}>
           {mode === "login" ? "New here?" : "Already have an account?"}{" "}
           <button onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError(""); setTermsAccepted(false); setEmail(""); setPassword(""); }} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontWeight: 600 }}>
             {mode === "login" ? "Sign Up" : "Log In"}
@@ -961,10 +1002,13 @@ function CommentSection({ postId, currentUser, bannedWords }) {
   const [newComment, setNewComment] = useState(""); const [loading, setLoading] = useState(false);
   const [replyTo, setReplyTo] = useState(null); const [replyText, setReplyText] = useState("");
   const [report, setReport] = useState(null);
+  const [expandedReplies, setExpandedReplies] = useState({}); // track which comment's replies are open
+
   useEffect(() => {
     const q = query(collection(db, "comments"), where("postId", "==", postId), orderBy("createdAt", "asc"));
     return onSnapshot(q, snap => setComments(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
   }, [postId]);
+
   const addComment = async (parentId = null, text = newComment) => {
     if (!text.trim()) return;
     if (filterContent(text, bannedWords).blocked) { alert("Comment contains blocked content."); return; }
@@ -986,6 +1030,8 @@ function CommentSection({ postId, currentUser, bannedWords }) {
       }
       if (parentId) {
         setReplyTo(null); setReplyText("");
+        // Auto-expand replies for this comment so the new reply is visible
+        setExpandedReplies(prev => ({ ...prev, [parentId]: true }));
       } else {
         setNewComment("");
       }
@@ -995,36 +1041,129 @@ function CommentSection({ postId, currentUser, bannedWords }) {
       setLoading(false);
     }
   };
+
   const likeComment = async (c) => {
     const liked = c.likedBy?.includes(currentUser.uid);
-    await updateDoc(doc(db, "comments", c.id), { likes: increment(liked ? -1 : 1), likedBy: liked ? arrayRemove(currentUser.uid) : arrayUnion(currentUser.uid) });
+    // Optimistic update
+    setComments(prev => prev.map(x => x.id !== c.id ? x : {
+      ...x,
+      likes: Math.max(0, (x.likes || 0) + (liked ? -1 : 1)),
+      likedBy: liked
+        ? (x.likedBy || []).filter(id => id !== currentUser.uid)
+        : [...(x.likedBy || []), currentUser.uid],
+    }));
+    try {
+      await updateDoc(doc(db, "comments", c.id), {
+        likes: increment(liked ? -1 : 1),
+        likedBy: liked ? arrayRemove(currentUser.uid) : arrayUnion(currentUser.uid),
+      });
+    } catch (err) {
+      setComments(prev => prev.map(x => x.id !== c.id ? x : c));
+    }
   };
+
   const deleteComment = async (id) => {
     if (!window.confirm("Delete comment?")) return;
     await deleteDoc(doc(db, "comments", id));
     await updateDoc(doc(db, "posts", postId), { commentCount: increment(-1), score: increment(-3) });
   };
+
   const topLevel = comments.filter(c => !c.parentId);
-  const replies = (pid) => comments.filter(c => c.parentId === pid);
-  const renderComment = (c, isReply = false) => (
-    <div key={c.id} className="comment fade-in">
-      <div className="comment-header"><Avatar username={c.username} /><span className="username">{c.username}</span><span className="timestamp">{timeAgo(c.createdAt)}</span><span style={{ fontSize: 10, color: "var(--muted)", fontFamily: "monospace" }}>{c.commentId}</span></div>
-      <div className="comment-text">{c.text}</div>
-      <div className="comment-actions">
-        <button className={`action-btn btn-sm ${c.likedBy?.includes(currentUser.uid) ? "liked" : ""}`} onClick={() => likeComment(c)} style={{ padding: "4px 10px", fontSize: 12 }}>♥ {c.likes || 0}</button>
-        {!isReply && <button className="action-btn btn-sm" onClick={() => setReplyTo(replyTo === c.id ? null : c.id)} style={{ padding: "4px 10px", fontSize: 12 }}>↩ Reply</button>}
-        <button className="action-btn btn-sm" onClick={() => setReport({ type: "comment", id: c.id, uid: c.uid })} style={{ padding: "4px 10px", fontSize: 12 }}>⚑ Report</button>
-        {(c.uid === currentUser.uid || currentUser.role === "admin") && <button className="action-btn btn-sm" onClick={() => deleteComment(c.id)} style={{ padding: "4px 10px", fontSize: 12, color: "var(--danger)" }}>🗑</button>}
-      </div>
-      {replyTo === c.id && (
-        <div className="comment-reply-form" style={{ marginTop: 10 }}>
-          <input className="inline-input" placeholder={`Replying to ${c.username}...`} value={replyText} onChange={e => setReplyText(e.target.value)} onKeyDown={e => e.key === "Enter" && addComment(c.id, replyText)} />
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}><button className="btn btn-primary btn-sm" onClick={() => addComment(c.id, replyText)} disabled={!replyText.trim()}>Reply</button><button className="btn btn-ghost btn-sm" onClick={() => setReplyTo(null)}>Cancel</button></div>
+  const getReplies = (pid) => comments.filter(c => c.parentId === pid);
+
+  // Renders a single comment. depth controls indentation (0 = top, 1+ = reply)
+  const renderComment = (c, depth = 0) => {
+    const commentReplies = getReplies(c.id);
+    const isExpanded = expandedReplies[c.id];
+    const isReplying = replyTo === c.id;
+    const isLiked = c.likedBy?.includes(currentUser.uid);
+
+    return (
+      <div key={c.id} className="comment fade-in" style={{ marginLeft: depth > 0 ? 32 : 0, borderLeft: depth > 0 ? "2px solid var(--border)" : "none", paddingLeft: depth > 0 ? 12 : 0, marginTop: depth > 0 ? 10 : 0 }}>
+        <div className="comment-header">
+          <Avatar username={c.username} />
+          <span className="username">{c.username}</span>
+          <span className="timestamp">{timeAgo(c.createdAt)}</span>
+          <span style={{ fontSize: 10, color: "var(--muted)", fontFamily: "monospace" }}>{c.commentId}</span>
         </div>
-      )}
-      {replies(c.id).length > 0 && <div className="reply-indent" style={{ marginLeft: 44 }}>{replies(c.id).map(r => renderComment(r, true))}</div>}
-    </div>
-  );
+        <div className="comment-text">{c.text}</div>
+        <div className="comment-actions">
+          <button
+            className={`action-btn btn-sm ${isLiked ? "liked" : ""}`}
+            onClick={() => likeComment(c)}
+            style={{ padding: "4px 10px", fontSize: 12 }}
+          >
+            ♥ {c.likes || 0}
+          </button>
+          {/* Allow reply on both top-level and nested comments */}
+          <button
+            className="action-btn btn-sm"
+            onClick={() => { setReplyTo(isReplying ? null : c.id); setReplyText(""); }}
+            style={{ padding: "4px 10px", fontSize: 12 }}
+          >
+            ↩ Reply
+          </button>
+          <button className="action-btn btn-sm" onClick={() => setReport({ type: "comment", id: c.id, uid: c.uid })} style={{ padding: "4px 10px", fontSize: 12 }}>⚑ Report</button>
+          {(c.uid === currentUser.uid || currentUser.role === "admin") && (
+            <button className="action-btn btn-sm" onClick={() => deleteComment(c.id)} style={{ padding: "4px 10px", fontSize: 12, color: "var(--danger)" }}>🗑</button>
+          )}
+          {/* Collapse/expand toggle — shown only when there are replies */}
+          {commentReplies.length > 0 && (
+            <button
+              className="action-btn btn-sm"
+              onClick={() => setExpandedReplies(prev => ({ ...prev, [c.id]: !isExpanded }))}
+              style={{ padding: "4px 10px", fontSize: 12, color: "var(--accent)", marginLeft: "auto" }}
+            >
+              {isExpanded ? `▲ Hide ${commentReplies.length} ${commentReplies.length === 1 ? "reply" : "replies"}` : `▼ ${commentReplies.length} ${commentReplies.length === 1 ? "reply" : "replies"}`}
+            </button>
+          )}
+        </div>
+
+        {/* Reply input */}
+        {isReplying && (
+          <div className="comment-reply-form" style={{ marginTop: 10 }}>
+            <input
+              className="inline-input"
+              placeholder={`Replying to ${c.username}...`}
+              value={replyText}
+              onChange={e => setReplyText(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && addComment(c.id, replyText)}
+              autoFocus
+            />
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <button className="btn btn-primary btn-sm" onClick={() => addComment(c.id, replyText)} disabled={!replyText.trim()}>Reply</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setReplyTo(null)}>Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {/* Collapsed replies summary — shown when there are replies but collapsed */}
+        {commentReplies.length > 0 && !isExpanded && (
+          <div
+            style={{ marginLeft: 44, marginTop: 8, fontSize: 12, color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+            onClick={() => setExpandedReplies(prev => ({ ...prev, [c.id]: true }))}
+          >
+            <div style={{ display: "flex", marginRight: 4 }}>
+              {commentReplies.slice(0, 3).map((r, i) => (
+                <div key={r.id} style={{ width: 18, height: 18, borderRadius: "50%", background: `hsl(${r.username?.charCodeAt(0) * 15 || 0},65%,55%)`, border: "1px solid var(--surface)", marginLeft: i > 0 ? -6 : 0, fontSize: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 700 }}>
+                  {r.username?.slice(0, 1).toUpperCase()}
+                </div>
+              ))}
+            </div>
+            ▼ View {commentReplies.length} {commentReplies.length === 1 ? "reply" : "replies"}
+          </div>
+        )}
+
+        {/* Expanded replies — rendered recursively so reply-to-reply works */}
+        {commentReplies.length > 0 && isExpanded && (
+          <div style={{ marginTop: 8 }}>
+            {commentReplies.map(r => renderComment(r, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div>
       {report && <ReportModal type="comment" targetId={report.id} targetUid={report.uid} reporterUid={currentUser.uid} onClose={() => setReport(null)} />}
@@ -1032,7 +1171,10 @@ function CommentSection({ postId, currentUser, bannedWords }) {
         <input className="inline-input" placeholder="Write a comment..." value={newComment} onChange={e => setNewComment(e.target.value)} onKeyDown={e => e.key === "Enter" && addComment()} />
         <button className="btn btn-primary" onClick={() => addComment()} disabled={loading || !newComment.trim()}>{loading ? <Spinner /> : "Post"}</button>
       </div>
-      {topLevel.length === 0 ? <div className="empty"><div className="empty-icon">💬</div><div className="empty-text">No comments yet.</div></div> : topLevel.map(c => renderComment(c))}
+      {topLevel.length === 0
+        ? <div className="empty"><div className="empty-icon">💬</div><div className="empty-text">No comments yet.</div></div>
+        : topLevel.map(c => renderComment(c, 0))
+      }
     </div>
   );
 }
@@ -1475,6 +1617,9 @@ function AdminPanel({ currentUser, allCategories, setAllCategories }) {
   const [supportMsgs, setSupportMsgs] = useState([]);
   const [maintenance, setMaintenance] = useState(false);
   const [deviceBans, setDeviceBans] = useState([]);
+  const [deviceWhitelist, setDeviceWhitelist] = useState([]);
+  const [newWhitelistFp, setNewWhitelistFp] = useState("");
+  const [newWhitelistNote, setNewWhitelistNote] = useState("");
 
   useEffect(() => {
     const u1 = onSnapshot(query(collection(db, "reports"), orderBy("createdAt", "desc")), snap => setReports(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
@@ -1483,9 +1628,10 @@ function AdminPanel({ currentUser, allCategories, setAllCategories }) {
     const u4 = onSnapshot(query(collection(db, "announcements"), orderBy("createdAt", "desc")), snap => setAnnouncements(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     const u5 = onSnapshot(query(collection(db, "support"), orderBy("createdAt", "desc")), snap => setSupportMsgs(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     const u6 = onSnapshot(collection(db, "deviceBans"), snap => setDeviceBans(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const u7 = onSnapshot(collection(db, "deviceWhitelist"), snap => setDeviceWhitelist(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
     getDoc(doc(db, "settings", "keywords")).then(snap => { if (snap.exists() && snap.data().words) setBannedWords(snap.data().words); });
     getDoc(doc(db, "settings", "maintenance")).then(snap => { if (snap.exists()) setMaintenance(snap.data().enabled || false); });
-    return () => { u1(); u2(); u3(); u4(); u5(); u6(); };
+    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); };
   }, []);
 
   const saveKeywords = async (words) => { await setDoc(doc(db, "settings", "keywords"), { words }); };
@@ -1602,13 +1748,13 @@ function AdminPanel({ currentUser, allCategories, setAllCategories }) {
         <div className="stat-card"><div className="stat-num" style={{ color: "var(--accent)" }}>{supportMsgs.filter(m => m.status === "open").length}</div><div className="stat-label">Support Msgs</div></div>
       </div>
       <div className="tabs admin-tabs-desktop" style={{ marginBottom: 24 }}>
-        {[["dashboard","📊 Dashboard"],["reports","🚨 Reports"],["posts","📝 Posts"],["users","👥 Users"],["duplicates","🔍 Duplicate Devices"],["keywords","🚫 Keywords"],["categories","🏷️ Categories"],["announcements","📢 Announcements"],["support","💬 Support"],["devices","🖥️ Device Bans"]].map(([id, label]) =>
+        {[["dashboard","📊 Dashboard"],["reports","🚨 Reports"],["posts","📝 Posts"],["users","👥 Users"],["duplicates","🔍 Duplicate Devices"],["keywords","🚫 Keywords"],["categories","🏷️ Categories"],["announcements","📢 Announcements"],["support","💬 Support"],["devices","🖥️ Device Bans"],["whitelist","✅ Whitelist"]].map(([id, label]) =>
           <button key={id} className={`tab ${tab === id ? "active" : ""}`} onClick={() => setTab(id)}>{label}</button>
         )}
       </div>
       {/* Mobile: dropdown instead of tabs */}
       <select className="admin-tabs-mobile" value={tab} onChange={e => setTab(e.target.value)}>
-        {[["dashboard","📊 Dashboard"],["reports","🚨 Reports"],["posts","📝 Posts"],["users","👥 Users"],["duplicates","🔍 Duplicate Devices"],["keywords","🚫 Keywords"],["categories","🏷️ Categories"],["announcements","📢 Announcements"],["support","💬 Support"],["devices","🖥️ Device Bans"]].map(([id, label]) =>
+        {[["dashboard","📊 Dashboard"],["reports","🚨 Reports"],["posts","📝 Posts"],["users","👥 Users"],["duplicates","🔍 Duplicate Devices"],["keywords","🚫 Keywords"],["categories","🏷️ Categories"],["announcements","📢 Announcements"],["support","💬 Support"],["devices","🖥️ Device Bans"],["whitelist","✅ Whitelist"]].map(([id, label]) =>
           <option key={id} value={id}>{label}</option>
         )}
       </select>
@@ -1939,6 +2085,72 @@ function AdminPanel({ currentUser, allCategories, setAllCategories }) {
                     <td>{b.reason}</td>
                     <td style={{ color: "var(--muted)", fontSize: 12 }}>{b.banUntil?.toDate?.().toLocaleDateString() || "Permanent"}</td>
                     <td><button className="btn btn-ghost btn-sm" onClick={() => deleteDoc(doc(db, "deviceBans", b.id))}>Remove</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table></div></div>
+          )}
+        </div>
+      )}
+
+      {tab === "whitelist" && (
+        <div>
+          <div className="card card-pad" style={{ marginBottom: 16 }}>
+            <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 18, marginBottom: 6 }}>✅ Device Whitelist</div>
+            <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.7, marginBottom: 16 }}>
+              Whitelisted devices are allowed to create a new account even if they were previously flagged as a duplicate or banned device.
+              Use this when a genuine new user is wrongly blocked — ask them to share their device fingerprint from the signup error screen, then add it here.
+            </div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+              <input
+                className="inline-input"
+                placeholder="Device fingerprint (e.g. fp_abc123)"
+                value={newWhitelistFp}
+                onChange={e => setNewWhitelistFp(e.target.value)}
+                style={{ flex: 1, minWidth: 200 }}
+              />
+              <input
+                className="inline-input"
+                placeholder="Note (e.g. new student, shared device)"
+                value={newWhitelistNote}
+                onChange={e => setNewWhitelistNote(e.target.value)}
+                style={{ flex: 1, minWidth: 160 }}
+              />
+              <button
+                className="btn btn-primary"
+                disabled={!newWhitelistFp.trim()}
+                onClick={async () => {
+                  const fp = newWhitelistFp.trim();
+                  if (!fp) return;
+                  const already = deviceWhitelist.find(w => w.fingerprint === fp);
+                  if (already) { alert("This fingerprint is already whitelisted."); return; }
+                  await addDoc(collection(db, "deviceWhitelist"), {
+                    fingerprint: fp,
+                    note: newWhitelistNote.trim() || "—",
+                    addedBy: currentUser.username,
+                    createdAt: serverTimestamp(),
+                  });
+                  setNewWhitelistFp(""); setNewWhitelistNote("");
+                  alert("✅ Device whitelisted. That user can now sign up.");
+                }}
+              >
+                Add to Whitelist
+              </button>
+            </div>
+          </div>
+          {deviceWhitelist.length === 0 ? (
+            <div className="empty"><div className="empty-icon">✅</div><div className="empty-text">No whitelisted devices yet. Add one above when a genuine user is blocked.</div></div>
+          ) : (
+            <div className="card"><div className="table-wrap admin-table-wrap"><table>
+              <thead><tr><th>Fingerprint</th><th>Note</th><th>Added By</th><th>Date</th><th>Actions</th></tr></thead>
+              <tbody>
+                {deviceWhitelist.map(w => (
+                  <tr key={w.id}>
+                    <td style={{ fontFamily: "monospace", fontSize: 11, color: "var(--accent2)" }}>{w.fingerprint}</td>
+                    <td style={{ fontSize: 13, color: "var(--muted)" }}>{w.note}</td>
+                    <td style={{ fontSize: 12 }}>{w.addedBy}</td>
+                    <td style={{ fontSize: 12, color: "var(--muted)" }}>{timeAgo(w.createdAt)}</td>
+                    <td><button className="btn btn-danger btn-sm" onClick={() => deleteDoc(doc(db, "deviceWhitelist", w.id))}>Remove</button></td>
                   </tr>
                 ))}
               </tbody>
