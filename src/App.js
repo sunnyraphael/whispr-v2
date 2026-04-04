@@ -1682,6 +1682,7 @@ function AdminPanel({ currentUser, allCategories, setAllCategories }) {
   const [deviceWhitelist, setDeviceWhitelist] = useState([]);
   const [newWhitelistFp, setNewWhitelistFp] = useState("");
   const [newWhitelistNote, setNewWhitelistNote] = useState("");
+  const [userSearch, setUserSearch] = useState("");
 
   // ── Lazy-load admin data per tab — massive read saving ──────────────────────
   // Previously: 7 live listeners open simultaneously = hundreds of reads/minute
@@ -1986,10 +1987,32 @@ function AdminPanel({ currentUser, allCategories, setAllCategories }) {
       )}
 
       {tab === "users" && (
+        <div>
+          <div style={{ marginBottom: 12, display: "flex", gap: 10, alignItems: "center" }}>
+            <input
+              className="inline-input"
+              placeholder="🔍 Search by username or email..."
+              value={userSearch}
+              onChange={e => setUserSearch(e.target.value)}
+              style={{ flex: 1, maxWidth: 360 }}
+            />
+            {userSearch && (
+              <button className="btn btn-ghost btn-sm" onClick={() => setUserSearch("")}>✕ Clear</button>
+            )}
+            <span style={{ fontSize: 12, color: "var(--muted)" }}>
+              {users.filter(u => {
+                const s = userSearch.toLowerCase();
+                return !s || u.username?.toLowerCase().includes(s) || u.email?.toLowerCase().includes(s);
+              }).length} of {users.length} users
+            </span>
+          </div>
         <div className="card"><div className="table-wrap admin-table-wrap"><table>
           <thead><tr><th>Display Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last Seen</th><th>Device FP</th><th>Actions</th></tr></thead>
           <tbody>
-            {users.map(u => {
+            {users.filter(u => {
+              const s = userSearch.toLowerCase();
+              return !s || u.username?.toLowerCase().includes(s) || u.email?.toLowerCase().includes(s);
+            }).map(u => {
               const lastSeen = u.lastSeen?.toDate?.();
               const minsAgo = lastSeen ? (Date.now() - lastSeen.getTime()) / 60000 : null;
               const isOnline = minsAgo !== null && minsAgo < 3; // online if seen within last 3 mins
@@ -2035,6 +2058,7 @@ function AdminPanel({ currentUser, allCategories, setAllCategories }) {
             })}
           </tbody>
         </table></div></div>
+        </div>
       )}
 
       {tab === "duplicates" && (() => {
@@ -2835,10 +2859,33 @@ function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
             ))}
 
             <ComposePost currentUser={currentUser} allCategories={allCategories} bannedWords={bannedWords} onNewPost={(post) => { setPosts(prev => [post, ...prev.filter(p => p.id !== post.id)]); setNewPostsAvailable(false); latestPostCreatedAt.current = post.createdAt; }} />
-            <div className="section-tabs">
-              {[["latest","Latest"],["trending","🔥 Trending"],["mostCommented","💬 Most Discussed"]].map(([id, label]) =>
-                <button key={id} className={`section-tab ${section === id ? "active" : ""}`} onClick={() => setSection(id)}>{label}</button>
-              )}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 0 }}>
+              <div className="section-tabs" style={{ flex: 1, marginBottom: 0 }}>
+                {[["latest","Latest"],["trending","🔥 Trending"],["mostCommented","💬 Most Discussed"]].map(([id, label]) =>
+                  <button key={id} className={`section-tab ${section === id ? "active" : ""}`} onClick={() => setSection(id)}>{label}</button>
+                )}
+              </div>
+              <button
+                onClick={() => fetchFeed(activeCategory)}
+                disabled={loading}
+                title="Refresh posts"
+                style={{
+                  flexShrink: 0,
+                  background: "var(--surface2)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-sm)",
+                  color: "var(--muted)",
+                  cursor: loading ? "not-allowed" : "pointer",
+                  padding: "6px 10px",
+                  fontSize: 15,
+                  lineHeight: 1,
+                  transition: "color 0.2s, border-color 0.2s",
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = "var(--accent)"}
+                onMouseLeave={e => e.currentTarget.style.color = "var(--muted)"}
+              >
+                {loading ? "⏳" : "🔄"}
+              </button>
             </div>
             {section === "latest" && (
               <div className="tabs" style={{ marginBottom: 16 }}>
