@@ -2558,7 +2558,7 @@ function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
   }, [activeCategory, buildBaseQuery]);
 
   // Initial load and reload when category changes
-  useEffect(() => { fetchFeed(activeCategory); }, [activeCategory]);
+  useEffect(() => { fetchFeed(activeCategory); }, [activeCategory, fetchFeed]);
 
   // Poll every 60s to check if new posts arrived — much cheaper than onSnapshot
   useEffect(() => {
