@@ -1429,6 +1429,31 @@ function ComposePost({ currentUser, allCategories, bannedWords, onNewPost }) {
         return;
       }
 
+      // Build a local post object so the poster sees their post immediately
+      // without waiting for a Firestore read or the 60s poll
+      if (onNewPost) {
+        const localPost = {
+          id: result.postId || `local_${Date.now()}`,
+          postId: result.postId || "",
+          content: content.trim(),
+          uid: currentUser.uid,
+          username: currentUser.username,
+          category,
+          likes: 0,
+          likedBy: [],
+          reactions: {},
+          userReactions: {},
+          commentCount: 0,
+          reported: false,
+          deleted: false,
+          pinned: false,
+          score: 0,
+          disappearing: isDisappearing,
+          createdAt: { toDate: () => new Date(), seconds: Math.floor(Date.now() / 1000) },
+          ...(isPoll ? { poll: { labels: pollOptions.filter(o => o.trim()), options: Object.fromEntries(pollOptions.filter(o => o.trim()).map((_, i) => [i, 0])), votes: {} } } : {}),
+        };
+        onNewPost(localPost);
+      }
       setContent(""); setPollOptions(["", ""]); setIsPoll(false); setIsDisappearing(false);
       startCooldown(Math.ceil(POST_COOLDOWN_MS / 1000));
     } catch (err) {
@@ -2809,7 +2834,7 @@ function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
               </div>
             ))}
 
-            <ComposePost currentUser={currentUser} allCategories={allCategories} bannedWords={bannedWords} />
+            <ComposePost currentUser={currentUser} allCategories={allCategories} bannedWords={bannedWords} onNewPost={(post) => { setPosts(prev => [post, ...prev.filter(p => p.id !== post.id)]); setNewPostsAvailable(false); latestPostCreatedAt.current = post.createdAt; }} />
             <div className="section-tabs">
               {[["latest","Latest"],["trending","🔥 Trending"],["mostCommented","💬 Most Discussed"]].map(([id, label]) =>
                 <button key={id} className={`section-tab ${section === id ? "active" : ""}`} onClick={() => setSection(id)}>{label}</button>
