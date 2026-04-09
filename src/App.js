@@ -2007,7 +2007,7 @@ function AdminPanel({ currentUser, allCategories, setAllCategories }) {
             </span>
           </div>
         <div className="card"><div className="table-wrap admin-table-wrap"><table>
-          <thead><tr><th>Display Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last Seen</th><th>Device FP</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Display Name</th><th>Role</th><th>Status</th><th>Last Seen</th><th>Device FP</th><th>Actions</th></tr></thead>
           <tbody>
             {users.filter(u => {
               const s = userSearch.toLowerCase();
@@ -2030,7 +2030,6 @@ function AdminPanel({ currentUser, allCategories, setAllCategories }) {
               return (
                 <tr key={u.id}>
                   <td><div style={{ display: "flex", alignItems: "center", gap: 8 }}><Avatar username={u.username} />{u.username}</div></td>
-                  <td style={{ fontSize: 11, color: "var(--muted)", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email || "—"}</td>
                   <td><span className={`badge ${u.role === "admin" ? "badge-purple" : "badge-success"}`}>{u.role || "user"}</span></td>
                   <td>
                     <span className={`badge ${status.cls}`}>{status.label}</span>
