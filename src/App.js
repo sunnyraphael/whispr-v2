@@ -1802,6 +1802,24 @@ function AdminPanel({ currentUser, allCategories, setAllCategories }) {
       alert("Failed to unban user. Please check your connection.");
     }
   };
+
+  const deleteAccount = async (u) => {
+    if (!window.confirm(`PERMANENTLY DELETE account "${u.username}"?\n\nThis will remove ALL their posts, comments, and account data. This cannot be undone.`)) return;
+    try {
+      const token = await auth.currentUser.getIdToken();
+      const response = await fetch("https://web-production-549eb.up.railway.app/admin/delete-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify({ targetUid: u.uid }),
+      });
+      const result = await response.json();
+      if (!response.ok) { alert(result.detail || "Failed to delete account."); return; }
+      alert(`Account "${u.username}" and all their data has been deleted.`);
+    } catch (e) {
+      alert("Failed to delete account. Please check your connection.");
+    }
+  };
+
   const deletePost = async (id) => { if (!window.confirm("Delete post?")) return; await updateDoc(doc(db, "posts", id), { deleted: true }); };
   const resolveReport = async (id) => { await updateDoc(doc(db, "reports", id), { status: "resolved" }); };
   const dismissReport = async (id) => { await updateDoc(doc(db, "reports", id), { status: "dismissed" }); };
@@ -2131,12 +2149,17 @@ function AdminPanel({ currentUser, allCategories, setAllCategories }) {
                             : <span style={{ fontSize: 11, color: "#fca5a5", fontWeight: 700 }}>⚠️ Duplicate</span>}
                           </td>
                           <td>
-                            {u.uid !== currentUser.uid && !u.banned && i !== 0 && (
-                              <button className="btn btn-danger btn-sm" onClick={() => { setBanModal(u); setBanDuration("30"); setBanUnit("days"); setBanReason("Duplicate account — only one account per device is allowed."); }}>Ban</button>
-                            )}
-                            {u.uid !== currentUser.uid && u.banned && (
-                              <button className="btn btn-ghost btn-sm" onClick={() => unbanUser(u)}>Unban</button>
-                            )}
+                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                              {u.uid !== currentUser.uid && !u.banned && i !== 0 && (
+                                <button className="btn btn-danger btn-sm" onClick={() => { setBanModal(u); setBanDuration("30"); setBanUnit("days"); setBanReason("Duplicate account — only one account per device is allowed."); }}>🔨 Ban</button>
+                              )}
+                              {u.uid !== currentUser.uid && u.banned && (
+                                <button className="btn btn-ghost btn-sm" onClick={() => unbanUser(u)}>Unban</button>
+                              )}
+                              {u.uid !== currentUser.uid && (
+                                <button className="btn btn-sm" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }} onClick={() => deleteAccount(u)}>🗑️ Delete</button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
