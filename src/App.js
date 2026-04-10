@@ -3095,7 +3095,7 @@ function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
       {openPost && <PostModal post={openPost} currentUser={currentUser} onClose={() => setOpenPost(null)} allCategories={allCategories} bannedWords={bannedWords} isAdmin={isAdmin} />}
       {/* Buy Me a Coffee — floating button */}
       <a
-        href="https://buymeacoffee.com/sunnyraphael"
+        href="https://paystack.shop/pay/donatetowhispr-app"
         target="_blank"
         rel="noopener noreferrer"
         style={{
