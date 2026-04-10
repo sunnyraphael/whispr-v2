@@ -1678,6 +1678,7 @@ function AdminPanel({ currentUser, allCategories, setAllCategories }) {
   const [newCatLabel, setNewCatLabel] = useState(""); const [newCatColor, setNewCatColor] = useState("#74b9ff");
   const [supportMsgs, setSupportMsgs] = useState([]);
   const [maintenance, setMaintenance] = useState(false);
+  const [ads, setAds] = useState([]);
   const [deviceBans, setDeviceBans] = useState([]);
   const [deviceWhitelist, setDeviceWhitelist] = useState([]);
   const [newWhitelistFp, setNewWhitelistFp] = useState("");
@@ -1721,6 +1722,10 @@ function AdminPanel({ currentUser, allCategories, setAllCategories }) {
       if (tabName === "whitelist") {
         const snap = await getDocs(collection(db, "deviceWhitelist"));
         setDeviceWhitelist(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }
+      if (tabName === "ads") {
+        const snap = await getDocs(query(collection(db, "ads"), orderBy("submittedAt", "desc")));
+        setAds(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       }
       if (tabName === "keywords") {
         const snap = await getDoc(doc(db, "settings", "keywords"));
@@ -1886,13 +1891,13 @@ function AdminPanel({ currentUser, allCategories, setAllCategories }) {
         <div className="stat-card"><div className="stat-num" style={{ color: "var(--accent)" }}>{supportMsgs.filter(m => m.status === "open").length}</div><div className="stat-label">Support Msgs</div></div>
       </div>
       <div className="tabs admin-tabs-desktop" style={{ marginBottom: 24 }}>
-        {[["dashboard","📊 Dashboard"],["reports","🚨 Reports"],["posts","📝 Posts"],["users","👥 Users"],["duplicates","🔍 Duplicate Devices"],["keywords","🚫 Keywords"],["categories","🏷️ Categories"],["announcements","📢 Announcements"],["support","💬 Support"],["devices","🖥️ Device Bans"],["whitelist","✅ Whitelist"]].map(([id, label]) =>
+        {[["dashboard","📊 Dashboard"],["reports","🚨 Reports"],["posts","📝 Posts"],["users","👥 Users"],["duplicates","🔍 Duplicate Devices"],["keywords","🚫 Keywords"],["categories","🏷️ Categories"],["announcements","📢 Announcements"],["support","💬 Support"],["devices","🖥️ Device Bans"],["whitelist","✅ Whitelist"],["ads","💰 Ads"]].map(([id, label]) =>
           <button key={id} className={`tab ${tab === id ? "active" : ""}`} onClick={() => setTab(id)}>{label}</button>
         )}
       </div>
       {/* Mobile: dropdown instead of tabs */}
       <select className="admin-tabs-mobile" value={tab} onChange={e => setTab(e.target.value)}>
-        {[["dashboard","📊 Dashboard"],["reports","🚨 Reports"],["posts","📝 Posts"],["users","👥 Users"],["duplicates","🔍 Duplicate Devices"],["keywords","🚫 Keywords"],["categories","🏷️ Categories"],["announcements","📢 Announcements"],["support","💬 Support"],["devices","🖥️ Device Bans"],["whitelist","✅ Whitelist"]].map(([id, label]) =>
+        {[["dashboard","📊 Dashboard"],["reports","🚨 Reports"],["posts","📝 Posts"],["users","👥 Users"],["duplicates","🔍 Duplicate Devices"],["keywords","🚫 Keywords"],["categories","🏷️ Categories"],["announcements","📢 Announcements"],["support","💬 Support"],["devices","🖥️ Device Bans"],["whitelist","✅ Whitelist"],["ads","💰 Ads"]].map(([id, label]) =>
           <option key={id} value={id}>{label}</option>
         )}
       </select>
@@ -2356,6 +2361,80 @@ function AdminPanel({ currentUser, allCategories, setAllCategories }) {
         </div>
       )}
 
+      {tab === "ads" && (
+        <div>
+          <div style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 800, marginBottom: 4 }}>
+            💰 Sponsored Ads
+          </div>
+          <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20 }}>
+            Review ad submissions from businesses. Approved ads appear at the top of the student feed.
+            Share this link with businesses: <span style={{ color: "var(--accent)", fontFamily: "monospace", fontSize: 12 }}>whispr-app.netlify.app/ad-submit.html</span>
+          </div>
+
+          {ads.length === 0 ? (
+            <div className="empty"><div className="empty-icon">📢</div><div className="empty-text">No ad submissions yet.</div></div>
+          ) : ads.map(ad => (
+            <div key={ad.id} className="card card-pad" style={{
+              marginBottom: 12,
+              border: ad.status === "approved" ? "1px solid rgba(16,185,129,0.35)"
+                    : ad.status === "rejected" ? "1px solid rgba(239,68,68,0.2)"
+                    : "1px solid rgba(124,58,237,0.3)",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
+                    <strong style={{ fontSize: 15 }}>{ad.businessName}</strong>
+                    <span style={{
+                      fontSize: 11, padding: "2px 10px", borderRadius: 99, fontWeight: 700,
+                      background: ad.status === "approved" ? "rgba(16,185,129,0.15)"
+                                : ad.status === "rejected" ? "rgba(239,68,68,0.12)" : "rgba(124,58,237,0.15)",
+                      color: ad.status === "approved" ? "var(--success)"
+                           : ad.status === "rejected" ? "var(--danger)" : "var(--accent)",
+                    }}>
+                      {ad.status.toUpperCase()}
+                    </span>
+                    <span style={{ fontSize: 12, color: "var(--muted)" }}>{timeAgo(ad.submittedAt)}</span>
+                  </div>
+                  <p style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 8, color: "var(--text)" }}>{ad.adText}</p>
+                  <div style={{ fontSize: 12, color: "var(--muted)", display: "flex", gap: 16, flexWrap: "wrap" }}>
+                    <span>✉️ {ad.contactEmail}</span>
+                    {ad.link && <a href={ad.link} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)" }}>{ad.link}</a>}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+                {ad.status !== "approved" && (
+                  <button className="btn btn-sm" style={{ background: "rgba(16,185,129,0.15)", color: "var(--success)", border: "1px solid rgba(16,185,129,0.3)" }}
+                    onClick={async () => {
+                      await updateDoc(doc(db, "ads", ad.id), { status: "approved" });
+                      setAds(prev => prev.map(a => a.id === ad.id ? { ...a, status: "approved" } : a));
+                    }}>
+                    ✅ Approve
+                  </button>
+                )}
+                {ad.status !== "rejected" && (
+                  <button className="btn btn-danger btn-sm"
+                    onClick={async () => {
+                      await updateDoc(doc(db, "ads", ad.id), { status: "rejected" });
+                      setAds(prev => prev.map(a => a.id === ad.id ? { ...a, status: "rejected" } : a));
+                    }}>
+                    ✕ Reject
+                  </button>
+                )}
+                <button className="btn btn-ghost btn-sm"
+                  onClick={async () => {
+                    if (!window.confirm("Permanently delete this ad submission?")) return;
+                    await deleteDoc(doc(db, "ads", ad.id));
+                    setAds(prev => prev.filter(a => a.id !== ad.id));
+                  }}>
+                  🗑 Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Ban Modal */}
       {banModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -2550,6 +2629,7 @@ function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
   const [randomSeed, setRandomSeed] = useState(0);
   const [globalTrending, setGlobalTrending] = useState([]);       // platform-wide top by score
   const [globalMostCommented, setGlobalMostCommented] = useState([]); // platform-wide top by comments
+  const [sponsoredAd, setSponsoredAd] = useState(null); // sponsored ad shown at top of feed
   // True Firestore pagination state
   const PAGE_SIZE = 20;
   const [lastDoc, setLastDoc] = useState(null);       // cursor for "load older"
@@ -2592,6 +2672,20 @@ function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
       snap => setGlobalMostCommented(snap.docs.map(d => ({ id: d.id, ...d.data() })))
     );
     return () => { unsubCats(); unsubAnnounce(); unsubTrending(); unsubMostCommented(); };
+  }, []);
+
+  // Fetch one random approved sponsored ad on load
+  useEffect(() => {
+    const fetchAd = async () => {
+      try {
+        const snap = await getDocs(query(collection(db, "ads"), where("status", "==", "approved")));
+        const approved = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (approved.length > 0) {
+          setSponsoredAd(approved[Math.floor(Math.random() * approved.length)]);
+        }
+      } catch (_) {} // ads are optional — never break the feed
+    };
+    fetchAd();
   }, []);
 
   // ── Build a base Firestore query (no cursor) ────────────────────────────────
@@ -2933,6 +3027,30 @@ function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
               );
               return (
                 <>
+                  {/* Sponsored ad — shown at top of feed if one is approved */}
+                  {sponsoredAd && (
+                    <div style={{
+                      background: "var(--surface)",
+                      border: "1px solid rgba(124,58,237,0.35)",
+                      borderRadius: "var(--radius)",
+                      padding: "14px 16px",
+                      marginBottom: 16,
+                    }}>
+                      <div style={{ fontSize: 10, color: "var(--accent)", fontWeight: 700, letterSpacing: 1, marginBottom: 8, textTransform: "uppercase" }}>
+                        Sponsored
+                      </div>
+                      <p style={{ fontSize: 15, lineHeight: 1.6, marginBottom: 10, color: "var(--text)" }}>{sponsoredAd.adText}</p>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                        <span style={{ fontSize: 13, color: "var(--muted)" }}>📌 {sponsoredAd.businessName}</span>
+                        {sponsoredAd.link && (
+                          <a href={sponsoredAd.link} target="_blank" rel="noopener noreferrer"
+                             style={{ fontSize: 13, color: "var(--accent)", textDecoration: "none", fontWeight: 600 }}>
+                            Learn more →
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   {/* New posts banner — shows when polling detects new content */}
                   {newPostsAvailable && (
                     <button
@@ -2975,6 +3093,26 @@ function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
         </div>
       )}
       {openPost && <PostModal post={openPost} currentUser={currentUser} onClose={() => setOpenPost(null)} allCategories={allCategories} bannedWords={bannedWords} isAdmin={isAdmin} />}
+      {/* Buy Me a Coffee — floating button */}
+      <a
+        href="https://buymeacoffee.com/sunnyraphael"
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          position: "fixed", bottom: 24, right: 24,
+          background: "#FFDD00", color: "#000",
+          borderRadius: 99, padding: "10px 18px",
+          fontWeight: 700, fontSize: 13,
+          textDecoration: "none", zIndex: 998,
+          display: "flex", alignItems: "center", gap: 7,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
+          transition: "transform 0.15s, box-shadow 0.15s",
+        }}
+        onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.05)"; e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.45)"; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.35)"; }}
+      >
+        ☕ Buy me a coffee
+      </a>
       <PushToast toast={pushToast} />
     </div>
   );
@@ -3203,6 +3341,12 @@ service cloud.firestore {
     match /deviceBans/{id} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
+    }
+    match /ads/{id} {
+      allow read: if isAdmin() || resource.data.status == "approved";
+      allow create: if true; // public — anyone can submit
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
   }
 }
