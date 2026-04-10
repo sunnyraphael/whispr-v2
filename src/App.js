@@ -559,6 +559,7 @@ function buildStyles(theme) {
   .dropdown-item.danger { color: var(--danger); }
 
   @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
   .fade-in { animation: fadeIn 0.25s ease; }
 
   .search-bar { position: relative; flex: 1; max-width: 280px; }
@@ -2627,6 +2628,7 @@ function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
   const [bannedWords, setBannedWords] = useState([...DEFAULT_BANNED_KEYWORDS]);
   const [announcements, setAnnouncements] = useState([]);
   const [randomSeed, setRandomSeed] = useState(0);
+  const [composeOpen, setComposeOpen] = useState(false);
   const [globalTrending, setGlobalTrending] = useState([]);       // platform-wide top by score
   const [globalMostCommented, setGlobalMostCommented] = useState([]); // platform-wide top by comments
   const [sponsoredAd, setSponsoredAd] = useState(null); // sponsored ad shown at top of feed
@@ -2974,7 +2976,6 @@ function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
               </div>
             ))}
 
-            <ComposePost currentUser={currentUser} allCategories={allCategories} bannedWords={bannedWords} onNewPost={(post) => { setPosts(prev => [post, ...prev.filter(p => p.id !== post.id)]); setNewPostsAvailable(false); latestPostCreatedAt.current = post.createdAt; }} />
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 0 }}>
               <div className="section-tabs" style={{ flex: 1, marginBottom: 0 }}>
                 {[["latest","Latest"],["trending","🔥 Trending"],["mostCommented","💬 Most Discussed"]].map(([id, label]) =>
@@ -3093,26 +3094,104 @@ function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
         </div>
       )}
       {openPost && <PostModal post={openPost} currentUser={currentUser} onClose={() => setOpenPost(null)} allCategories={allCategories} bannedWords={bannedWords} isAdmin={isAdmin} />}
-      {/* Buy Me a Coffee — floating button */}
+      {/* Floating Compose Button — bottom left */}
+      <button
+        onClick={() => setComposeOpen(true)}
+        title="Write a post"
+        style={{
+          position: "fixed", bottom: 24, left: 24,
+          background: "var(--accent)", color: "#fff",
+          border: "none", borderRadius: 99,
+          width: 56, height: 56,
+          fontSize: 24, cursor: "pointer", zIndex: 998,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          boxShadow: "0 4px 20px var(--glow)",
+          transition: "transform 0.15s, box-shadow 0.15s",
+        }}
+        onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.08)"; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
+      >
+        ✏️
+      </button>
+
+      {/* Donate — smaller floating button, bottom right */}
       <a
         href="https://paystack.shop/pay/donatetowhispr-app"
         target="_blank"
         rel="noopener noreferrer"
+        title="Support Whispr"
         style={{
           position: "fixed", bottom: 24, right: 24,
           background: "#FFDD00", color: "#000",
-          borderRadius: 99, padding: "10px 18px",
-          fontWeight: 700, fontSize: 13,
+          borderRadius: 99, padding: "8px 14px",
+          fontWeight: 700, fontSize: 12,
           textDecoration: "none", zIndex: 998,
-          display: "flex", alignItems: "center", gap: 7,
-          boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
-          transition: "transform 0.15s, box-shadow 0.15s",
+          display: "flex", alignItems: "center", gap: 5,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
+          transition: "transform 0.15s",
         }}
-        onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.05)"; e.currentTarget.style.boxShadow = "0 6px 20px rgba(0,0,0,0.45)"; }}
-        onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.35)"; }}
+        onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.05)"; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
       >
-        ☕ Buy me a coffee
+        ☕ Donate
       </a>
+
+      {/* Compose Bottom Sheet */}
+      {composeOpen && (
+        <div
+          onClick={e => { if (e.target === e.currentTarget) setComposeOpen(false); }}
+          style={{
+            position: "fixed", inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            zIndex: 999,
+            display: "flex", alignItems: "flex-end", justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              width: "100%", maxWidth: 680,
+              background: "var(--surface)",
+              borderRadius: "20px 20px 0 0",
+              padding: "0 0 24px 0",
+              boxShadow: "0 -8px 40px rgba(0,0,0,0.4)",
+              animation: "slideUp 0.25s ease",
+              maxHeight: "90vh",
+              overflowY: "auto",
+            }}
+          >
+            {/* Sheet header with close button */}
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "16px 20px 8px",
+              borderBottom: "1px solid var(--border)",
+            }}>
+              <span style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 15 }}>New Post</span>
+              <button
+                onClick={() => setComposeOpen(false)}
+                style={{
+                  background: "var(--surface3)", border: "none", borderRadius: "50%",
+                  width: 30, height: 30, cursor: "pointer", color: "var(--text)",
+                  fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center",
+                }}
+              >✕</button>
+            </div>
+            <div style={{ padding: "0 4px" }}>
+              <ComposePost
+                currentUser={currentUser}
+                allCategories={allCategories}
+                bannedWords={bannedWords}
+                onNewPost={(post) => {
+                  setPosts(prev => [post, ...prev.filter(p => p.id !== post.id)]);
+                  setNewPostsAvailable(false);
+                  latestPostCreatedAt.current = post.createdAt;
+                  setComposeOpen(false);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       <PushToast toast={pushToast} />
     </div>
   );
