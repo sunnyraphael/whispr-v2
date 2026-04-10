@@ -1585,11 +1585,23 @@ function SupportButton({ currentUser }) {
 
 function NotificationBell({ currentUser }) {
   const [notifs, setNotifs] = useState([]); const [open, setOpen] = useState(false); const ref = useRef();
-  useEffect(() => {
+
+  const fetchNotifs = useCallback(async () => {
     if (!currentUser?.uid) return;
-    const q = query(collection(db, "notifications"), where("toUid", "==", currentUser.uid), orderBy("createdAt", "desc"), limit(30));
-    return onSnapshot(q, snap => setNotifs(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    try {
+      const q = query(collection(db, "notifications"), where("toUid", "==", currentUser.uid), orderBy("createdAt", "desc"), limit(30));
+      const snap = await getDocs(q);
+      setNotifs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (_) {}
   }, [currentUser?.uid]);
+
+  // Fetch on mount, then every 2 minutes — much cheaper than onSnapshot
+  useEffect(() => {
+    fetchNotifs();
+    const interval = setInterval(fetchNotifs, 2 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchNotifs]);
+
   useEffect(() => {
     const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h);
@@ -1616,7 +1628,7 @@ function NotificationBell({ currentUser }) {
   };
   return (
     <div ref={ref} style={{ position: "relative" }}>
-      <button className="notif-btn" onClick={() => { setOpen(o => !o); if (!open) markRead(); }}>🔔{unread > 0 && <span className="notif-dot" />}</button>
+      <button className="notif-btn" onClick={() => { setOpen(o => !o); if (!open) { markRead(); fetchNotifs(); } }}>🔔{unread > 0 && <span className="notif-dot" />}</button>
       {open && (
         <div className="notif-panel fade-in">
           <div className="notif-header">Notifications {unread > 0 && `(${unread})`}</div>
@@ -2646,34 +2658,45 @@ function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
     document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  // Heartbeat — writes lastSeen every 2 minutes so admin panel shows accurate online status
+  // Heartbeat — writes lastSeen every 5 minutes (reduced from 2min to save writes)
   useEffect(() => {
     const write = () => updateDoc(doc(db, "users", currentUser.uid), { lastSeen: serverTimestamp() });
-    write(); // write immediately on load
-    const interval = setInterval(write, 2 * 60 * 1000);
+    write();
+    const interval = setInterval(write, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [currentUser.uid]);
 
-  // Categories via live onSnapshot — admin changes appear everywhere instantly
+  // One-time fetch on load — no live listeners to avoid burning Firestore reads.
+  // User must manually refresh (via 🔄 button) to see updates. This is intentional.
   useEffect(() => {
-    const unsubCats = onSnapshot(doc(db, "settings", "categories"), snap => {
-      if (snap.exists() && snap.data().list) setAllCategories(snap.data().list);
-    });
-    getDoc(doc(db, "settings", "keywords")).then(snap => { if (snap.exists() && snap.data().words) setBannedWords(snap.data().words); });
-    const unsubAnnounce = onSnapshot(query(collection(db, "announcements"), orderBy("createdAt", "desc")), snap =>
-      setAnnouncements(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(a => a.active !== false))
-    );
-    // Platform-wide trending — top 20 by score across ALL posts, live
-    const unsubTrending = onSnapshot(
-      query(collection(db, "posts"), where("deleted", "==", false), orderBy("score", "desc"), limit(20)),
-      snap => setGlobalTrending(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-    );
-    // Platform-wide most discussed — top 20 by commentCount across ALL posts, live
-    const unsubMostCommented = onSnapshot(
-      query(collection(db, "posts"), where("deleted", "==", false), orderBy("commentCount", "desc"), limit(20)),
-      snap => setGlobalMostCommented(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-    );
-    return () => { unsubCats(); unsubAnnounce(); unsubTrending(); unsubMostCommented(); };
+    const fetchStaticData = async () => {
+      try {
+        // Categories
+        const catSnap = await getDoc(doc(db, "settings", "categories"));
+        if (catSnap.exists() && catSnap.data().list) setAllCategories(catSnap.data().list);
+      } catch (_) {}
+      try {
+        // Banned keywords
+        const kwSnap = await getDoc(doc(db, "settings", "keywords"));
+        if (kwSnap.exists() && kwSnap.data().words) setBannedWords(kwSnap.data().words);
+      } catch (_) {}
+      try {
+        // Announcements
+        const annSnap = await getDocs(query(collection(db, "announcements"), orderBy("createdAt", "desc")));
+        setAnnouncements(annSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(a => a.active !== false));
+      } catch (_) {}
+      try {
+        // Trending — fetched once, refreshed only when user taps 🔄
+        const trendSnap = await getDocs(query(collection(db, "posts"), where("deleted", "==", false), orderBy("score", "desc"), limit(20)));
+        setGlobalTrending(trendSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (_) {}
+      try {
+        // Most discussed — same, one-time fetch
+        const commSnap = await getDocs(query(collection(db, "posts"), where("deleted", "==", false), orderBy("commentCount", "desc"), limit(20)));
+        setGlobalMostCommented(commSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (_) {}
+    };
+    fetchStaticData();
   }, []);
 
   // Fetch one random approved sponsored ad on load
@@ -3106,7 +3129,7 @@ function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
           fontSize: 24, cursor: "pointer", zIndex: 998,
           display: "flex", alignItems: "center", justifyContent: "center",
           boxShadow: "0 4px 20px var(--glow)",
-          transition: "transform 0.15s, box-shadow 0.15s",
+          transition: "transform 0.15s",
         }}
         onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.08)"; }}
         onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
@@ -3147,19 +3170,15 @@ function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
             display: "flex", alignItems: "flex-end", justifyContent: "center",
           }}
         >
-          <div
-            style={{
-              width: "100%", maxWidth: 680,
-              background: "var(--surface)",
-              borderRadius: "20px 20px 0 0",
-              padding: "0 0 24px 0",
-              boxShadow: "0 -8px 40px rgba(0,0,0,0.4)",
-              animation: "slideUp 0.25s ease",
-              maxHeight: "90vh",
-              overflowY: "auto",
-            }}
-          >
-            {/* Sheet header with close button */}
+          <div style={{
+            width: "100%", maxWidth: 680,
+            background: "var(--surface)",
+            borderRadius: "20px 20px 0 0",
+            padding: "0 0 24px 0",
+            boxShadow: "0 -8px 40px rgba(0,0,0,0.4)",
+            animation: "slideUp 0.25s ease",
+            maxHeight: "90vh", overflowY: "auto",
+          }}>
             <div style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
               padding: "16px 20px 8px",
