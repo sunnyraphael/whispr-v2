@@ -49,7 +49,7 @@ async function registerForPushNotifications() {
     if (!token) return;
     const authToken = await auth.currentUser?.getIdToken();
     if (!authToken) return;
-    await fetch("https://web-production-549eb.up.railway.app/save-fcm-token", {
+    await fetch("https://whispr-v2-backend.onrender.com/save-fcm-token", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${authToken}` },
       body: JSON.stringify({ token }),
@@ -765,7 +765,7 @@ function AuthPage({ theme, toggleTheme, onSignupSuccess }) {
       const fp = getDeviceFingerprint();
 
       // Send signup request to backend — all validation happens server-side
-      const response = await fetch("https://web-production-549eb.up.railway.app/signup", {
+      const response = await fetch("https://whispr-v2-backend.onrender.com/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -903,7 +903,7 @@ function ReactionButton({ postId, postUid, userReaction, reactions, currentUser,
     });
     try {
       const token = await auth.currentUser.getIdToken();
-      const response = await fetch("https://web-production-549eb.up.railway.app/react", {
+      const response = await fetch("https://whispr-v2-backend.onrender.com/react", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -936,7 +936,7 @@ function ReportModal({ type, targetId, targetUid, reporterUid, onClose }) {
     if (!reason) return;
     try {
       const token = await auth.currentUser.getIdToken();
-      const response = await fetch("https://web-production-549eb.up.railway.app/report", {
+      const response = await fetch("https://whispr-v2-backend.onrender.com/report", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1053,7 +1053,7 @@ function CommentSection({ postId, currentUser, bannedWords }) {
     setLoading(true);
     try {
       const token = await auth.currentUser.getIdToken();
-      const response = await fetch("https://web-production-549eb.up.railway.app/comment", {
+      const response = await fetch("https://whispr-v2-backend.onrender.com/comment", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1296,7 +1296,7 @@ function PostCard({ post, currentUser, onOpen, allCategories, onBookmark, isBook
     });
     try {
       const token = await auth.currentUser.getIdToken();
-      const response = await fetch("https://web-production-549eb.up.railway.app/like", {
+      const response = await fetch("https://whispr-v2-backend.onrender.com/like", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1414,7 +1414,7 @@ function ComposePost({ currentUser, allCategories, bannedWords, onNewPost }) {
       };
 
       // Send to backend instead of writing directly to Firestore
-      const response = await fetch("https://web-production-549eb.up.railway.app/post", {
+      const response = await fetch("https://whispr-v2-backend.onrender.com/post", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1777,7 +1777,7 @@ function AdminPanel({ currentUser, allCategories, setAllCategories }) {
       const token = await auth.currentUser.getIdToken();
       const ms = parseInt(banDuration) * (banUnit === "hours" ? 3600000 : banUnit === "days" ? 86400000 : 604800000);
       const durationDays = ms / 86400000;
-      const response = await fetch("https://web-production-549eb.up.railway.app/admin/ban", {
+      const response = await fetch("https://whispr-v2-backend.onrender.com/admin/ban", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1804,7 +1804,7 @@ function AdminPanel({ currentUser, allCategories, setAllCategories }) {
   const unbanUser = async (u) => {
     try {
       const token = await auth.currentUser.getIdToken();
-      const response = await fetch("https://web-production-549eb.up.railway.app/admin/unban", {
+      const response = await fetch("https://whispr-v2-backend.onrender.com/admin/unban", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1825,7 +1825,7 @@ function AdminPanel({ currentUser, allCategories, setAllCategories }) {
     if (!window.confirm(`PERMANENTLY DELETE account "${u.username}"?\n\nThis will remove ALL their posts, comments, and account data. This cannot be undone.`)) return;
     try {
       const token = await auth.currentUser.getIdToken();
-      const response = await fetch("https://web-production-549eb.up.railway.app/admin/delete-account", {
+      const response = await fetch("https://whispr-v2-backend.onrender.com/admin/delete-account", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
         body: JSON.stringify({ targetUid: u.uid }),
