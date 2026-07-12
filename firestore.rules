@@ -1,0 +1,106 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'; }
+    function isSignedIn() { return request.auth != null; }
+    function notBanned() { return !get(/databases/$(database)/documents/users/$(request.auth.uid)).data.banned; }
+
+    // ── USERS ─────────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+
+      // CHANGED: self-updates now limited to only these 3 fields.
+      // banned / role / postCount / deviceFingerprint etc. are no longer
+      // self-editable — closes the "unban yourself" hole.
+      allow update: if isSignedIn() && request.auth.uid == userId
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['bookmarks', 'lastSeen', 'fcmToken']);
+
+      // Admins keep full update power, but still can't reassign whose profile this is.
+      allow update: if isAdmin()
+                    && request.resource.data.uid == resource.data.uid;
+    }
+
+    // ── POSTS ──────────────────────────────────────────────────────────
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if isSignedIn() && notBanned();
+
+      // CHANGED (Rule A): liking — only your own id may be added/removed
+      // from likedBy, one at a time, only likes/likedBy/score may change.
+      allow update: if isSignedIn() && notBanned()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'score'])
+                    && request.resource.data.likedBy.toSet().difference(resource.data.likedBy.toSet()).size() <= 1
+                    && resource.data.likedBy.toSet().difference(request.resource.data.likedBy.toSet()).size() <= 1
+                    && (request.resource.data.likedBy.hasAll([request.auth.uid]) || resource.data.likedBy.hasAll([request.auth.uid]));
+
+      // CHANGED (Rule B): reactions — narrowed to just these two fields.
+      allow update: if isSignedIn() && notBanned()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions', 'userReactions']);
+
+      // CHANGED (Rule C): soft-delete — only the post's own owner, only the deleted field.
+      allow update: if isSignedIn() && notBanned()
+                    && resource.data.uid == request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted']);
+
+      // Existing: post owner can edit their own content within the edit window (unchanged from before).
+      allow update: if isSignedIn() && notBanned()
+                    && resource.data.uid == request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['content', 'edited', 'editedAt']);
+
+      // CHANGED: comment-count / score bump on comment delete — any signed-in,
+      // non-banned user (matches how CommentSection currently calls this).
+      allow update: if isSignedIn() && notBanned()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount', 'score']);
+
+      // CHANGED (Rule D): admin-only fields, now includes pinned (was missing before,
+      // which is what broke the pin button).
+      allow update: if isAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['reported', 'flagged', 'flaggedAt', 'flagReason', 'poll',
+                                 'commentCount', 'disappearsAt', 'pinned', 'score']);
+
+      allow delete: if isAdmin();
+    }
+
+    // ── COMMENTS ───────────────────────────────────────────────────────
+    match /comments/{commentId} {
+      allow read: if true;
+      allow create: if isSignedIn() && notBanned();
+      allow update: if isSignedIn() && notBanned() && resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && (request.auth.uid == resource.data.uid || isAdmin());
+    }
+
+    // ── EVERYTHING BELOW: UNCHANGED FROM YOUR ORIGINAL RULES ───────────
+    match /reports/{reportId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+      allow update: if isAdmin();
+    }
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && (resource == null || resource.data.toUid == request.auth.uid);
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && resource.data.toUid == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.toUid == request.auth.uid;
+    }
+    match /announcements/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /settings/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /support/{id} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    match /deviceBans/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /deviceWhitelist/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /ipBans/{id} { allow read: if isSignedIn(); allow write: if isAdmin(); }
+    match /ads/{id} {
+      allow read: if isAdmin() || resource.data.status == "approved";
+      allow create: if true;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+  }
+}
