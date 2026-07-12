@@ -19,7 +19,7 @@ export const DEFAULT_BANNED_KEYWORDS = [
 // ─── ADMIN NOTE ───────────────────────────────────────────────────────────────
 // Admin role is set directly in Firebase Console → Firestore → users → your doc → role: "admin"
 // Bypass emails (can create multiple accounts) are stored in Firestore:
-//   settings/bypassEmails → { emails: ["you@undergraduate.mcu.edu.ng", ...] }
+//   settings/bypassEmails → { emails: ["you@example.edu.ng", ...] }
 // Only admins can read/write that document (see Firestore rules).
 
 export const POST_COOLDOWN_MS = 2 * 60 * 1000; // 2 minutes
