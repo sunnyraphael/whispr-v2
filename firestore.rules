@@ -50,20 +50,16 @@ service cloud.firestore {
                     && request.resource.data.diff(resource.data).affectedKeys()
                        .hasOnly(['content', 'edited', 'editedAt']);
 
-      // Poll voting — open to any signed-in, non-banned user (any user may vote)
-      allow update: if isSignedIn() && notBanned()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['poll']);
-
       // CHANGED: comment-count / score bump on comment delete — any signed-in,
       // non-banned user (matches how CommentSection currently calls this).
       allow update: if isSignedIn() && notBanned()
                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount', 'score']);
 
-      // CHANGED (Rule D): admin-only fields — poll removed (now has its own rule above,
-      // since any user can vote, not just admins).
+      // CHANGED (Rule D): admin-only fields, now includes pinned (was missing before,
+      // which is what broke the pin button).
       allow update: if isAdmin()
                     && request.resource.data.diff(resource.data).affectedKeys()
-                       .hasOnly(['reported', 'flagged', 'flaggedAt', 'flagReason',
+                       .hasOnly(['reported', 'flagged', 'flaggedAt', 'flagReason', 'poll',
                                  'commentCount', 'disappearsAt', 'pinned', 'score']);
 
       allow delete: if isAdmin();
