@@ -8,6 +8,7 @@ import { signOut, onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, onSnapshot, updateDoc } from "firebase/firestore";
 import Spinner from "./components/shared/Spinner";
 import AuthPage from "./components/auth/AuthPage";
+import { Icon } from "./components/shared/Icons";
 import StyleTag from "./components/layout/StyleTag";
 import Feed from "./components/layout/Feed";
 import { auth, db, registerForPushNotifications } from "./firebase";
@@ -117,7 +118,7 @@ export default function App() {
     <>
       <StyleTag theme={theme} />
       <div className="maintenance-screen" style={{ background: "var(--bg)" }}>
-        <div className="maintenance-icon">🔧</div>
+        <div className="maintenance-icon"><Icon.Wrench size={42} /></div>
         <div className="maintenance-title">Under Maintenance</div>
         <div className="maintenance-sub">Whispr is currently undergoing scheduled maintenance. We'll be back shortly — hang tight!</div>
         <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 8 }}>— The Whispr Team</div>
@@ -131,7 +132,7 @@ export default function App() {
       <StyleTag theme={theme} />
       {maintenanceMode ? (
         <div className="maintenance-screen" style={{ background: "var(--bg)" }}>
-          <div className="maintenance-icon">🔧</div>
+          <div className="maintenance-icon"><Icon.Wrench size={42} /></div>
           <div className="maintenance-title">Under Maintenance</div>
           <div className="maintenance-sub">Whispr is currently undergoing scheduled maintenance. We'll be back shortly!</div>
           <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 8 }}>— The Whispr Team</div>

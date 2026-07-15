@@ -9,6 +9,22 @@ import { timeAgo } from "../../utils/time";
 import { DEFAULT_CATEGORIES, DEFAULT_BANNED_KEYWORDS } from "../../constants";
 import Avatar from "../shared/Avatar";
 import Spinner from "../shared/Spinner";
+import { Icon } from "../shared/Icons";
+
+const ADMIN_TABS = [
+  { id: "dashboard", label: "Dashboard", Icon: Icon.BarChart },
+  { id: "reports", label: "Reports", Icon: Icon.AlertTriangle },
+  { id: "posts", label: "Posts", Icon: Icon.Edit },
+  { id: "users", label: "Users", Icon: Icon.Users },
+  { id: "duplicates", label: "Duplicate Devices", Icon: Icon.Search },
+  { id: "keywords", label: "Keywords", Icon: Icon.Trash },
+  { id: "categories", label: "Categories", Icon: Icon.Bookmark },
+  { id: "announcements", label: "Announcements", Icon: Icon.Chat },
+  { id: "support", label: "Support", Icon: Icon.Message },
+  { id: "devices", label: "Device Bans", Icon: Icon.Monitor },
+  { id: "whitelist", label: "Whitelist", Icon: Icon.Unlock },
+  { id: "ads", label: "Ads", Icon: Icon.DollarSign },
+];
 
 export default function AdminPanel({ currentUser, allCategories, setAllCategories }) {
   const [tab, setTab] = useState("dashboard");
@@ -210,16 +226,16 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
     <div className="admin-page fade-in">
       <div className="admin-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
         <div>
-          <div className="admin-title">⚙️ Admin Panel</div>
+          <div className="admin-title" style={{ display: "flex", alignItems: "center", gap: 8 }}><Icon.Settings size={17} /> Admin Panel</div>
           <div className="admin-subtitle">Logged in as {currentUser.username}</div>
         </div>
         <button
           className="btn btn-ghost btn-sm"
           onClick={() => { loadedTabs.current.delete(tab); loadTabData(tab, true); }}
           disabled={adminLoading}
-          style={{ alignSelf: "center" }}
+          style={{ alignSelf: "center", display: "flex", alignItems: "center", gap: 6 }}
         >
-          {adminLoading ? <Spinner /> : "🔄 Refresh"}
+          {adminLoading ? <Spinner /> : <><Icon.RefreshCw size={13} /> Refresh</>}
         </button>
       </div>
       <div className="stats-grid">
@@ -232,13 +248,13 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
         <div className="stat-card"><div className="stat-num" style={{ color: "var(--accent)" }}>{supportMsgs.filter(m => m.status === "open").length}</div><div className="stat-label">Support Msgs</div></div>
       </div>
       <div className="tabs admin-tabs-desktop" style={{ marginBottom: 24 }}>
-        {[["dashboard","📊 Dashboard"],["reports","🚨 Reports"],["posts","📝 Posts"],["users","👥 Users"],["duplicates","🔍 Duplicate Devices"],["keywords","🚫 Keywords"],["categories","🏷️ Categories"],["announcements","📢 Announcements"],["support","💬 Support"],["devices","🖥️ Device Bans"],["whitelist","✅ Whitelist"],["ads","💰 Ads"]].map(([id, label]) =>
-          <button key={id} className={`tab ${tab === id ? "active" : ""}`} onClick={() => setTab(id)}>{label}</button>
+        {ADMIN_TABS.map(({ id, label, Icon: TabIcon }) =>
+          <button key={id} className={`tab ${tab === id ? "active" : ""}`} onClick={() => setTab(id)} style={{ display: "flex", alignItems: "center", gap: 6 }}><TabIcon size={13} /> {label}</button>
         )}
       </div>
       {/* Mobile: dropdown instead of tabs */}
       <select className="admin-tabs-mobile" value={tab} onChange={e => setTab(e.target.value)}>
-        {[["dashboard","📊 Dashboard"],["reports","🚨 Reports"],["posts","📝 Posts"],["users","👥 Users"],["duplicates","🔍 Duplicate Devices"],["keywords","🚫 Keywords"],["categories","🏷️ Categories"],["announcements","📢 Announcements"],["support","💬 Support"],["devices","🖥️ Device Bans"],["whitelist","✅ Whitelist"],["ads","💰 Ads"]].map(([id, label]) =>
+        {ADMIN_TABS.map(({ id, label }) =>
           <option key={id} value={id}>{label}</option>
         )}
       </select>
@@ -259,7 +275,7 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
             <div className="card card-pad">
-              <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, marginBottom: 12 }}>🔥 Most Reported Posts</div>
+              <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", gap: 7 }}><Icon.Flag size={14} /> Most Reported Posts</div>
               {reports.filter(r => r.type === "post" && r.status === "pending").slice(0, 5).map(r => (
                 <div key={r.id} style={{ padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 13, color: "var(--muted)" }}>
                   <span className="badge badge-danger">Post</span> {r.reason} — <span style={{ fontSize: 11, fontFamily: "monospace" }}>{r.targetId?.slice(0, 8)}</span>
@@ -268,7 +284,7 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
               {reports.filter(r => r.type === "post" && r.status === "pending").length === 0 && <div style={{ color: "var(--muted)", fontSize: 13 }}>No pending post reports</div>}
             </div>
             <div className="card card-pad">
-              <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, marginBottom: 12 }}>⚠️ Recently Banned</div>
+              <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, marginBottom: 12, display: "flex", alignItems: "center", gap: 7 }}><Icon.AlertTriangle size={14} /> Recently Banned</div>
               {banned.slice(0, 5).map(u => (
                 <div key={u.id} style={{ padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
                   <Avatar username={u.username} /><div><div>{u.username}</div><div style={{ fontSize: 11, color: "var(--muted)" }}>{u.banReason}</div></div>
@@ -281,8 +297,8 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
           <div className="card card-pad" style={{ marginTop: 20, border: maintenance ? "1px solid rgba(239,68,68,0.4)" : "1px solid var(--border)", background: maintenance ? "rgba(239,68,68,0.04)" : undefined }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
               <div>
-                <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 16, marginBottom: 4 }}>
-                  🔒 Maintenance Mode {maintenance && <span className="badge badge-danger" style={{ marginLeft: 8 }}>ACTIVE</span>}
+                <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 16, marginBottom: 4, display: "flex", alignItems: "center", gap: 7 }}>
+                  <Icon.Lock size={14} /> Maintenance Mode {maintenance && <span className="badge badge-danger" style={{ marginLeft: 8 }}>ACTIVE</span>}
                 </div>
                 <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6 }}>
                   When ON, the site shows a maintenance screen to all regular users. You (admin) can still access everything normally.
@@ -291,9 +307,9 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
               <button
                 onClick={toggleMaintenance}
                 className={maintenance ? "btn btn-danger" : "btn btn-ghost"}
-                style={{ minWidth: 140, justifyContent: "center" }}
+                style={{ minWidth: 140, justifyContent: "center", display: "flex", alignItems: "center", gap: 6 }}
               >
-                {maintenance ? "🔴 Turn Off" : "🔒 Enable Maintenance"}
+                {maintenance ? <><Icon.Unlock size={13} /> Turn Off</> : <><Icon.Lock size={13} /> Enable Maintenance</>}
               </button>
             </div>
           </div>
@@ -355,13 +371,13 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
           <div style={{ marginBottom: 12, display: "flex", gap: 10, alignItems: "center" }}>
             <input
               className="inline-input"
-              placeholder="🔍 Search by username or email..."
+              placeholder="Search by username or email..."
               value={userSearch}
               onChange={e => setUserSearch(e.target.value)}
               style={{ flex: 1, maxWidth: 360 }}
             />
             {userSearch && (
-              <button className="btn btn-ghost btn-sm" onClick={() => setUserSearch("")}>✕ Clear</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setUserSearch("")} style={{ display: "flex", alignItems: "center", gap: 5 }}><Icon.X size={11} /> Clear</button>
             )}
             <span style={{ fontSize: 12, color: "var(--muted)" }}>
               {users.filter(u => {
@@ -381,10 +397,10 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
               const minsAgo = lastSeen ? (Date.now() - lastSeen.getTime()) / 60000 : null;
               const isOnline = minsAgo !== null && minsAgo < 3; // online if seen within last 3 mins
               const status = u.banned
-                ? { label: "Banned", cls: "badge-danger" }
+                ? { label: "Banned", cls: "badge-danger", dot: null }
                 : isOnline
-                  ? { label: "🟢 Online", cls: "badge-success" }
-                  : { label: "⚫ Offline", cls: "badge-ghost" };
+                  ? { label: "Online", cls: "badge-success", dot: "#10b981" }
+                  : { label: "Offline", cls: "badge-ghost", dot: "#5f5e6a" };
               const lastSeenText = minsAgo === null
                 ? "Never"
                 : isOnline
@@ -396,7 +412,7 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
                   <td><div style={{ display: "flex", alignItems: "center", gap: 8 }}><Avatar username={u.username} />{u.username}</div></td>
                   <td><span className={`badge ${u.role === "admin" ? "badge-purple" : "badge-success"}`}>{u.role || "user"}</span></td>
                   <td>
-                    <span className={`badge ${status.cls}`}>{status.label}</span>
+                    <span className={`badge ${status.cls}`} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>{status.dot && <span style={{ width: 6, height: 6, borderRadius: "50%", background: status.dot, flexShrink: 0 }} />}{status.label}</span>
                     {u.banned && u.banUntil && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>Until: {u.banUntil.toDate?.().toLocaleDateString()}</div>}
                     {u.banned && u.banReason && <div style={{ fontSize: 11, color: "var(--muted)" }}>{u.banReason}</div>}
                   </td>
@@ -461,14 +477,14 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
         return (
           <div>
             <div className="card card-pad" style={{ marginBottom: 16 }}>
-              <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 18, marginBottom: 6 }}>🔍 Duplicate Devices</div>
+              <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 18, marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}><Icon.Search size={16} /> Duplicate Devices</div>
               <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.7 }}>
                 Devices that have created more than one account. The <strong style={{ color: "var(--accent2)" }}>oldest account</strong> is treated as the original.
                 "Ban Duplicates" bans all newer accounts and blocks that device fingerprint from signing up again.
               </div>
             </div>
             {duplicateGroups.length === 0 ? (
-              <div className="empty"><div className="empty-icon">✅</div><div className="empty-text">No duplicate devices found. All clear.</div></div>
+              <div className="empty"><div className="empty-icon"><Icon.Check size={28} /></div><div className="empty-text">No duplicate devices found. All clear.</div></div>
             ) : (
               duplicateGroups.map(group => (
                 <div key={group.fp} className="card card-pad" style={{ marginBottom: 16 }}>
@@ -477,8 +493,8 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
                       <div style={{ fontSize: 11, fontFamily: "monospace", color: "var(--muted)", marginBottom: 6 }}>Device: {group.fp}</div>
                       <span className="badge badge-danger">{group.accounts.length} accounts from this device</span>
                     </div>
-                    <button className="btn btn-danger btn-sm" onClick={() => banDuplicates(group)}>
-                      🔨 Ban Duplicates (keep oldest)
+                    <button className="btn btn-danger btn-sm" onClick={() => banDuplicates(group)} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <Icon.Hammer size={12} /> Ban Duplicates (keep oldest)
                     </button>
                   </div>
                   <div className="table-wrap admin-table-wrap"><table>
@@ -491,19 +507,19 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
                           <td style={{ fontSize: 12, color: "var(--muted)" }}>{timeAgo(u.createdAt)}</td>
                           <td><span className={`badge ${u.banned ? "badge-danger" : "badge-success"}`}>{u.banned ? "Banned" : "Active"}</span></td>
                           <td>{i === 0
-                            ? <span style={{ fontSize: 11, color: "var(--accent2)", fontWeight: 700 }}>⭐ Original</span>
-                            : <span style={{ fontSize: 11, color: "#fca5a5", fontWeight: 700 }}>⚠️ Duplicate</span>}
+                            ? <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--accent2)", fontWeight: 700 }}><Icon.Star size={10} filled /> Original</span>
+                            : <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#fca5a5", fontWeight: 700 }}><Icon.AlertTriangle size={10} /> Duplicate</span>}
                           </td>
                           <td>
                             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                               {u.uid !== currentUser.uid && !u.banned && i !== 0 && (
-                                <button className="btn btn-danger btn-sm" onClick={() => { setBanModal(u); setBanDuration("30"); setBanUnit("days"); setBanReason("Duplicate account — only one account per device is allowed."); }}>🔨 Ban</button>
+                                <button className="btn btn-danger btn-sm" onClick={() => { setBanModal(u); setBanDuration("30"); setBanUnit("days"); setBanReason("Duplicate account — only one account per device is allowed."); }} style={{ display: "flex", alignItems: "center", gap: 5 }}><Icon.Hammer size={11} /> Ban</button>
                               )}
                               {u.uid !== currentUser.uid && u.banned && (
                                 <button className="btn btn-ghost btn-sm" onClick={() => unbanUser(u)}>Unban</button>
                               )}
                               {u.uid !== currentUser.uid && (
-                                <button className="btn btn-sm" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)" }} onClick={() => deleteAccount(u)}>🗑️ Delete</button>
+                                <button className="btn btn-sm" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)", display: "flex", alignItems: "center", gap: 5 }} onClick={() => deleteAccount(u)}><Icon.Trash size={11} /> Delete</button>
                               )}
                             </div>
                           </td>
@@ -528,11 +544,11 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {bannedWords.map(w => (
               <span key={w} style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#fca5a5", padding: "4px 12px", borderRadius: 20, fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
-                {w}<button onClick={() => removeBannedWord(w)} style={{ background: "none", border: "none", color: "#fca5a5", cursor: "pointer", fontSize: 14 }}>✕</button>
+                {w}<button onClick={() => removeBannedWord(w)} style={{ background: "none", border: "none", color: "#fca5a5", cursor: "pointer", display: "flex" }}><Icon.X size={11} /></button>
               </span>
             ))}
           </div>
-          <div className="alert alert-success" style={{ marginTop: 16 }}>✅ Keywords are saved permanently to Firebase.</div>
+          <div className="alert alert-success" style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 8 }}><Icon.Check size={13} /> Keywords are saved permanently to Firebase.</div>
         </div>
       )}
 
@@ -548,7 +564,7 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
             {allCategories.map(c => (
               <span key={c.id} style={{ background: c.color + "22", border: `1px solid ${c.color}44`, color: c.color, padding: "6px 14px", borderRadius: 20, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
                 {c.label}
-                {!DEFAULT_CATEGORIES.find(d => d.id === c.id) && <button onClick={() => removeCategory(c.id)} style={{ background: "none", border: "none", color: c.color, cursor: "pointer", fontSize: 13 }}>✕</button>}
+                {!DEFAULT_CATEGORIES.find(d => d.id === c.id) && <button onClick={() => removeCategory(c.id)} style={{ background: "none", border: "none", color: c.color, cursor: "pointer", display: "flex" }}><Icon.X size={11} /></button>}
               </span>
             ))}
           </div>
@@ -560,7 +576,7 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
           <div className="card card-pad" style={{ marginBottom: 16 }}>
             <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, marginBottom: 12 }}>Post Announcement</div>
             <textarea className="compose-area" placeholder="Write a site-wide announcement..." value={newAnnouncement} onChange={e => setNewAnnouncement(e.target.value)} style={{ minHeight: 80, marginBottom: 12 }} />
-            <button className="btn btn-primary" onClick={postAnnouncement} disabled={!newAnnouncement.trim()}>📢 Post Announcement</button>
+            <button className="btn btn-primary" onClick={postAnnouncement} disabled={!newAnnouncement.trim()} style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon.Chat size={13} /> Post Announcement</button>
           </div>
           <div>
             {announcements.map(a => (
@@ -584,7 +600,7 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
             Device fingerprints are stored when a user is banned. New signups from matching devices are blocked automatically. This covers ~90% of casual ban evasion attempts.
           </div>
           {deviceBans.length === 0 ? (
-            <div className="empty"><div className="empty-icon">🖥️</div><div className="empty-text">No device bans yet. Banning a user also bans their device.</div></div>
+            <div className="empty"><div className="empty-icon"><Icon.Monitor size={28} /></div><div className="empty-text">No device bans yet. Banning a user also bans their device.</div></div>
           ) : (
             <div className="card"><div className="table-wrap admin-table-wrap"><table>
               <thead><tr><th>Username</th><th>Fingerprint</th><th>Reason</th><th>Expires</th><th>Actions</th></tr></thead>
@@ -607,7 +623,7 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
       {tab === "whitelist" && (
         <div>
           <div className="card card-pad" style={{ marginBottom: 16 }}>
-            <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 18, marginBottom: 6 }}>✅ Device Whitelist</div>
+            <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 18, marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}><Icon.Check size={16} /> Device Whitelist</div>
             <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.7, marginBottom: 16 }}>
               Whitelisted devices are allowed to create a new account even if they were previously flagged as a duplicate or banned device.
               Use this when a genuine new user is wrongly blocked — ask them to share their device fingerprint from the signup error screen, then add it here.
@@ -650,7 +666,7 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
             </div>
           </div>
           {deviceWhitelist.length === 0 ? (
-            <div className="empty"><div className="empty-icon">✅</div><div className="empty-text">No whitelisted devices yet. Add one above when a genuine user is blocked.</div></div>
+            <div className="empty"><div className="empty-icon"><Icon.Check size={28} /></div><div className="empty-text">No whitelisted devices yet. Add one above when a genuine user is blocked.</div></div>
           ) : (
             <div className="card"><div className="table-wrap admin-table-wrap"><table>
               <thead><tr><th>Fingerprint</th><th>Note</th><th>Added By</th><th>Date</th><th>Actions</th></tr></thead>
@@ -676,9 +692,9 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
             User Support Messages ({supportMsgs.filter(m => m.status === "open").length} open)
           </div>
           {supportMsgs.length === 0 ? (
-            <div className="empty"><div className="empty-icon">💬</div><div className="empty-text">No support messages yet</div></div>
+            <div className="empty"><div className="empty-icon"><Icon.Message size={28} /></div><div className="empty-text">No support messages yet</div></div>
           ) : supportMsgs.map(m => (
-            <div key={m.id} className="card card-pad" style={{ marginBottom: 12, border: m.status === "open" ? "1px solid rgba(124,58,237,0.3)" : "1px solid var(--border)" }}>
+            <div key={m.id} className="card card-pad" style={{ marginBottom: 12, border: m.status === "open" ? "1px solid rgba(232,115,74,0.3)" : "1px solid var(--border)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>
@@ -704,8 +720,8 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
 
       {tab === "ads" && (
         <div>
-          <div style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 800, marginBottom: 4 }}>
-            💰 Sponsored Ads
+          <div style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 800, marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
+            <Icon.DollarSign size={16} /> Sponsored Ads
           </div>
           <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20 }}>
             Review ad submissions from businesses. Approved ads appear at the top of the student feed.
@@ -713,13 +729,13 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
           </div>
 
           {ads.length === 0 ? (
-            <div className="empty"><div className="empty-icon">📢</div><div className="empty-text">No ad submissions yet.</div></div>
+            <div className="empty"><div className="empty-icon"><Icon.DollarSign size={28} /></div><div className="empty-text">No ad submissions yet.</div></div>
           ) : ads.map(ad => (
             <div key={ad.id} className="card card-pad" style={{
               marginBottom: 12,
               border: ad.status === "approved" ? "1px solid rgba(16,185,129,0.35)"
                     : ad.status === "rejected" ? "1px solid rgba(239,68,68,0.2)"
-                    : "1px solid rgba(124,58,237,0.3)",
+                    : "1px solid rgba(232,115,74,0.3)",
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
                 <div style={{ flex: 1 }}>
@@ -728,7 +744,7 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
                     <span style={{
                       fontSize: 11, padding: "2px 10px", borderRadius: 99, fontWeight: 700,
                       background: ad.status === "approved" ? "rgba(16,185,129,0.15)"
-                                : ad.status === "rejected" ? "rgba(239,68,68,0.12)" : "rgba(124,58,237,0.15)",
+                                : ad.status === "rejected" ? "rgba(239,68,68,0.12)" : "rgba(232,115,74,0.15)",
                       color: ad.status === "approved" ? "var(--success)"
                            : ad.status === "rejected" ? "var(--danger)" : "var(--accent)",
                     }}>
@@ -738,37 +754,37 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
                   </div>
                   <p style={{ fontSize: 14, lineHeight: 1.6, marginBottom: 8, color: "var(--text)" }}>{ad.adText}</p>
                   <div style={{ fontSize: 12, color: "var(--muted)", display: "flex", gap: 16, flexWrap: "wrap" }}>
-                    <span>✉️ {ad.contactEmail}</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 5 }}><Icon.Mail size={12} /> {ad.contactEmail}</span>
                     {ad.link && <a href={ad.link} target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)" }}>{ad.link}</a>}
                   </div>
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
                 {ad.status !== "approved" && (
-                  <button className="btn btn-sm" style={{ background: "rgba(16,185,129,0.15)", color: "var(--success)", border: "1px solid rgba(16,185,129,0.3)" }}
+                  <button className="btn btn-sm" style={{ background: "rgba(16,185,129,0.15)", color: "var(--success)", border: "1px solid rgba(16,185,129,0.3)", display: "flex", alignItems: "center", gap: 6 }}
                     onClick={async () => {
                       await updateDoc(doc(db, "ads", ad.id), { status: "approved" });
                       setAds(prev => prev.map(a => a.id === ad.id ? { ...a, status: "approved" } : a));
                     }}>
-                    ✅ Approve
+                    <Icon.Check size={12} /> Approve
                   </button>
                 )}
                 {ad.status !== "rejected" && (
-                  <button className="btn btn-danger btn-sm"
+                  <button className="btn btn-danger btn-sm" style={{ display: "flex", alignItems: "center", gap: 6 }}
                     onClick={async () => {
                       await updateDoc(doc(db, "ads", ad.id), { status: "rejected" });
                       setAds(prev => prev.map(a => a.id === ad.id ? { ...a, status: "rejected" } : a));
                     }}>
-                    ✕ Reject
+                    <Icon.X size={12} /> Reject
                   </button>
                 )}
-                <button className="btn btn-ghost btn-sm"
+                <button className="btn btn-ghost btn-sm" style={{ display: "flex", alignItems: "center", gap: 6 }}
                   onClick={async () => {
                     if (!window.confirm("Permanently delete this ad submission?")) return;
                     await deleteDoc(doc(db, "ads", ad.id));
                     setAds(prev => prev.filter(a => a.id !== ad.id));
                   }}>
-                  🗑 Delete
+                  <Icon.Trash size={12} /> Delete
                 </button>
               </div>
             </div>
@@ -780,7 +796,7 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
       {banModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div className="card card-pad" style={{ width: 420, maxWidth: "90vw" }}>
-            <div style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 800, marginBottom: 4 }}>🚫 Ban User</div>
+            <div style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 800, marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}><Icon.Hammer size={16} /> Ban User</div>
             <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 20 }}>Banning <strong style={{ color: "var(--text)" }}>{banModal.username}</strong></div>
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 12, color: "var(--muted)", display: "block", marginBottom: 6, fontWeight: 600 }}>Duration</label>

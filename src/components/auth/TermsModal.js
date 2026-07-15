@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { Icon } from "../shared/Icons";
 
 // --- TERMS & CONDITIONS -------------------------------------------------------
 const TERMS_TEXT = `WHISPR — TERMS & CONDITIONS
@@ -69,7 +70,7 @@ export default function TermsModal({ onAccept, onDecline }) {
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
       <div className="card" style={{ maxWidth: 520, width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
         <div className="modal-header">
-          <span className="modal-title">📋 Terms & Conditions</span>
+          <span className="modal-title" style={{ display: "flex", alignItems: "center", gap: 8 }}><Icon.FileText size={16} /> Terms &amp; Conditions</span>
         </div>
         <div ref={bodyRef} onScroll={handleScroll} style={{ flex: 1, overflowY: "auto", padding: 24, fontSize: 13, lineHeight: 1.8, color: "var(--muted)", whiteSpace: "pre-wrap", fontFamily: "var(--font-body)" }}>
           {TERMS_TEXT}

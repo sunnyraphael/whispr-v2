@@ -4,6 +4,7 @@ import { db, auth } from "../../firebase";
 import { filterContent } from "../../utils/filter";
 import { POST_COOLDOWN_MS } from "../../constants";
 import Spinner from "../shared/Spinner";
+import { Icon } from "../shared/Icons";
 
 export default function ComposePost({ currentUser, allCategories, bannedWords, onNewPost }) {
   const [content, setContent] = useState("");
@@ -127,18 +128,18 @@ export default function ComposePost({ currentUser, allCategories, bannedWords, o
   return (
     <div className="card compose-card fade-in">
       <div className="compose-inner">
-        <div className="compose-header">✍️ Post Anonymously as <span style={{ color: "var(--accent2)" }}>{currentUser.username}</span></div>
+        <div className="compose-header"><Icon.Edit size={13} /> Post Anonymously as <span style={{ color: "var(--accent2)" }}>{currentUser.username}</span></div>
         {showFirstPostMsg && (
           <div className="alert alert-info" style={{ position: "relative" }}>
             👋 Welcome! You can post every <strong>2 minutes</strong> to keep things fair. Your first post is live — enjoy being anonymous!
-            <button onClick={() => setShowFirstPostMsg(false)} style={{ position: "absolute", right: 10, top: 10, background: "none", border: "none", color: "inherit", cursor: "pointer", fontSize: 14 }}>✕</button>
+            <button onClick={() => setShowFirstPostMsg(false)} style={{ position: "absolute", right: 10, top: 10, background: "none", border: "none", color: "inherit", cursor: "pointer" }}><Icon.X size={13} /></button>
           </div>
         )}
         {error && <div className="alert alert-error">{error}</div>}
         {cooldownLeft > 0 && (
           <div style={{ marginBottom: 12 }}>
             <div className="cooldown-bar" style={{ width: `${pct}%` }} />
-            <div className="cooldown-msg">⏱ Next post in {cooldownLeft}s</div>
+            <div className="cooldown-msg"><Icon.Clock size={12} /> Next post in {cooldownLeft}s</div>
           </div>
         )}
         <textarea className="compose-area" placeholder="What's on your mind? Share anonymously..." value={content} onChange={e => setContent(e.target.value)} maxLength={MAX + 10} />
@@ -148,7 +149,7 @@ export default function ComposePost({ currentUser, allCategories, bannedWords, o
             {pollOptions.map((opt, i) => (
               <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                 <input className="inline-input" placeholder={`Option ${i + 1}`} value={opt} onChange={e => { const n = [...pollOptions]; n[i] = e.target.value; setPollOptions(n); }} />
-                {pollOptions.length > 2 && <button className="btn btn-ghost btn-sm" onClick={() => setPollOptions(p => p.filter((_, j) => j !== i))}>✕</button>}
+                {pollOptions.length > 2 && <button className="btn btn-ghost btn-sm" onClick={() => setPollOptions(p => p.filter((_, j) => j !== i))}><Icon.X size={11} /></button>}
               </div>
             ))}
             {pollOptions.length < 5 && <button className="btn btn-ghost btn-sm" onClick={() => setPollOptions(p => [...p, ""])}>+ Add Option</button>}
@@ -158,8 +159,13 @@ export default function ComposePost({ currentUser, allCategories, bannedWords, o
           <select className="category-select" value={category} onChange={e => setCategory(e.target.value)}>
             {allCategories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
           </select>
-          <button className={`btn btn-sm ${isPoll ? "btn-primary" : "btn-ghost"}`} onClick={() => setIsPoll(p => !p)}>🗳️ Poll</button>
-          <button className={`btn btn-sm ${isDisappearing ? "btn-primary" : "btn-ghost"}`} onClick={() => setIsDisappearing(d => !d)} title="Post disappears after 24h">⏳ 24h</button>
+          <button className={`btn btn-sm ${isPoll ? "btn-primary" : "btn-ghost"}`} onClick={() => setIsPoll(p => !p)} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><path d="M7 16l4-6 4 4 5-8" /></svg>
+            Poll
+          </button>
+          <button className={`btn btn-sm ${isDisappearing ? "btn-primary" : "btn-ghost"}`} onClick={() => setIsDisappearing(d => !d)} title="Post disappears after 24h" style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <Icon.Clock size={12} /> 24h
+          </button>
           <span className={`char-count ${chars > MAX * 0.9 ? "warn" : ""} ${chars > MAX ? "over" : ""}`} style={{ marginLeft: "auto" }}>{chars}/{MAX}</span>
           <button className="btn btn-primary" onClick={submit} disabled={loading || !content.trim() || chars > MAX || cooldownLeft > 0}>{loading ? <Spinner /> : "Post"}</button>
         </div>

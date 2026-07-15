@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../firebase";
+import { Icon } from "./Icons";
 
 export default function SupportButton({ currentUser }) {
   const [open, setOpen] = useState(false);
@@ -32,12 +33,12 @@ export default function SupportButton({ currentUser }) {
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
-      <button className="notif-btn" onClick={() => setOpen(o => !o)} title="Contact Support">💬</button>
+      <button className="notif-btn" onClick={() => setOpen(o => !o)} title="Contact Support"><Icon.Chat size={15} /></button>
       {open && (
         <div className="notif-panel fade-in" style={{ width: 320, padding: 0 }}>
           <div className="notif-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span>Contact Admin</span>
-            <button className="close-btn" onClick={() => setOpen(false)}>x</button>
+            <button className="close-btn" onClick={() => setOpen(false)}><Icon.X size={12} /></button>
           </div>
           {sent ? (
             <div style={{ padding: 20 }}><div className="alert alert-success" style={{ margin: 0 }}>Message sent! We will get back to you soon.</div></div>

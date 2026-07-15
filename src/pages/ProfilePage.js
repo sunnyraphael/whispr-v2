@@ -4,6 +4,7 @@ import { db } from "../firebase";
 import { timeAgo } from "../utils/time";
 import Spinner from "../components/shared/Spinner";
 import PostModal from "../components/posts/PostModal";
+import { Icon } from "../components/shared/Icons";
 
 export default function ProfilePage({ currentUser, allCategories, bannedWords, isAdmin }) {
   const [posts, setPosts] = useState([]);
@@ -81,7 +82,7 @@ export default function ProfilePage({ currentUser, allCategories, bannedWords, i
       {loading ? (
         <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner /></div>
       ) : sorted.length === 0 ? (
-        <div className="empty"><div className="empty-icon">📝</div><div className="empty-text">You haven't posted anything yet.</div></div>
+        <div className="empty"><div className="empty-icon"><Icon.Edit size={28} /></div><div className="empty-text">You haven't posted anything yet.</div></div>
       ) : (
         <div className="card">
           {sorted.map(p => {
@@ -91,18 +92,18 @@ export default function ProfilePage({ currentUser, allCategories, bannedWords, i
               <div key={p.id} className="profile-post" onClick={() => setOpenPost(p)}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
                   {cat && <span className="category-tag" style={{ background: cat.color + "22", color: cat.color }}>{cat.label}</span>}
-                  {p.pinned && <span style={{ fontSize: 11, color: "var(--accent)", fontWeight: 700 }}>📌 Pinned</span>}
-                  {p.disappearing && <span style={{ fontSize: 11, color: "var(--accent2)" }}>⏳ Disappearing</span>}
+                  {p.pinned && <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "var(--accent)", fontWeight: 700 }}><Icon.Pin size={10} /> Pinned</span>}
+                  {p.disappearing && <span style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 11, color: "var(--accent2)" }}><Icon.Clock size={11} /> Disappearing</span>}
                   <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: "auto" }}>{timeAgo(p.createdAt)}</span>
                   <span style={{ fontSize: 10, color: "var(--muted)", fontFamily: "monospace" }}>{p.postId}</span>
                 </div>
-                {p.poll && <div style={{ fontSize: 12, color: "var(--accent)", marginBottom: 6, fontWeight: 600 }}>🗳️ Poll: {p.poll.labels.join(" vs ")}</div>}
+                {p.poll && <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "var(--accent)", marginBottom: 6, fontWeight: 600 }}><Icon.BarChart size={12} /> Poll: {p.poll.labels.join(" vs ")}</div>}
                 <div className="profile-post-content">{p.content}</div>
                 <div className="profile-post-stats">
-                  <span className="profile-post-stat" style={{ color: p.likes > 0 ? "#ef4444" : "var(--muted)" }}>♥ {p.likes || 0} likes</span>
-                  <span className="profile-post-stat">💬 {p.commentCount || 0} comments</span>
-                  {reactionCount > 0 && <span className="profile-post-stat">😊 {reactionCount} reactions</span>}
-                  {p.edited && <span className="profile-post-stat" style={{ color: "var(--muted)" }}>✏️ edited</span>}
+                  <span className="profile-post-stat" style={{ color: p.likes > 0 ? "#ef4444" : "var(--muted)" }}><Icon.Heart size={11} filled={p.likes > 0} /> {p.likes || 0} likes</span>
+                  <span className="profile-post-stat"><Icon.Message size={11} /> {p.commentCount || 0} comments</span>
+                  {reactionCount > 0 && <span className="profile-post-stat"><Icon.Smile size={11} /> {reactionCount} reactions</span>}
+                  {p.edited && <span className="profile-post-stat" style={{ color: "var(--muted)" }}><Icon.Edit size={10} /> edited</span>}
                 </div>
               </div>
             );

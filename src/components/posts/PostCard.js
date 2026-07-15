@@ -4,6 +4,7 @@ import { timeAgo } from "../../utils/time";
 import Avatar from "../shared/Avatar";
 import ReactionButton from "./ReactionButton";
 import PollDisplay from "./PollDisplay";
+import { Icon } from "../shared/Icons";
 
 export default function PostCard({ post, currentUser, onOpen, allCategories, onBookmark, isBookmarked, isAdmin, onPostUpdate }) {
   const liked = post.likedBy?.includes(currentUser.uid) ?? false;
@@ -49,23 +50,39 @@ export default function PostCard({ post, currentUser, onOpen, allCategories, onB
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <span className="username">{post.username}</span>
                 {cat && <span className="category-tag" style={{ background: cat.color + "22", color: cat.color }}>{cat.label}</span>}
-                {post.pinned && <span className="pin-badge">📌 Pinned</span>}
-                {post.disappearing && <span className="disappearing-badge">⏳</span>}
+                {post.pinned && <span className="pin-badge"><Icon.Pin size={11} /> Pinned</span>}
+                {post.disappearing && <span className="disappearing-badge" title="Disappears after 24h"><Icon.Clock size={12} /></span>}
               </div>
               <div style={{ display: "flex", gap: 8 }}><span className="timestamp">{timeAgo(post.createdAt)}</span><span className="post-id">{post.postId}</span>{post.edited && <span style={{ fontSize: 11, color: "var(--muted)" }}>(edited)</span>}</div>
             </div>
           </div>
           <div style={{ display: "flex", gap: 4 }}>
-            {isAdmin && <button className="btn btn-sm" style={{ padding: "4px 8px", fontSize: 12, background: "none", border: "none", color: "var(--muted)" }} onClick={pinPost}>{post.pinned ? "📌" : "📍"}</button>}
+            {isAdmin && (
+              <button
+                className="icon-btn"
+                title={post.pinned ? "Unpin post" : "Pin post"}
+                onClick={pinPost}
+                style={post.pinned ? { color: "var(--accent)" } : undefined}
+              >
+                <Icon.Pin size={14} filled={post.pinned} />
+              </button>
+            )}
           </div>
         </div>
         {post.poll && <div onClick={e => e.stopPropagation()}><PollDisplay poll={post.poll} postId={post.id} currentUser={currentUser} /></div>}
         <div className="post-content" style={{ WebkitLineClamp: 4, overflow: "hidden", display: "-webkit-box", WebkitBoxOrient: "vertical" }}>{post.content}</div>
         <div className="post-actions" onClick={e => e.stopPropagation()}>
-          <button className={`action-btn ${liked ? "liked" : ""}`} onClick={toggleLike}>{liked ? "♥" : "♡"} {post.likes || 0}</button>
-          <button className="action-btn" onClick={onOpen}>💬 {post.commentCount || 0}</button>
+          <button className={`action-btn ${liked ? "liked" : ""}`} onClick={toggleLike}>
+            <Icon.Heart size={13} filled={liked} /> {post.likes || 0}
+          </button>
+          <button className="action-btn" onClick={onOpen}>
+            <Icon.Message size={13} /> {post.commentCount || 0}
+          </button>
           <ReactionButton postId={post.id} postUid={post.uid} userReaction={userReaction} reactions={post.reactions || {}} currentUser={currentUser} onPostUpdate={onPostUpdate} />
-          <button className={`action-btn ${isBookmarked ? "bookmarked" : ""}`} onClick={e => { e.stopPropagation(); onBookmark(post.id); }}>{isBookmarked ? "🔖" : "🏷️"}</button>
+          <span style={{ flex: 1 }} />
+          <button className={`action-btn icon-only ${isBookmarked ? "bookmarked" : ""}`} onClick={e => { e.stopPropagation(); onBookmark(post.id); }} title={isBookmarked ? "Remove bookmark" : "Bookmark"}>
+            <Icon.Bookmark size={13} filled={isBookmarked} />
+          </button>
         </div>
       </div>
     </div>

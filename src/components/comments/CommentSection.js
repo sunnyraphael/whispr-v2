@@ -9,6 +9,7 @@ import { timeAgo } from "../../utils/time";
 import Avatar from "../shared/Avatar";
 import Spinner from "../shared/Spinner";
 import ReportModal from "../shared/ReportModal";
+import { Icon } from "../shared/Icons";
 
 export default function CommentSection({ postId, currentUser, bannedWords }) {
   const [comments, setComments] = useState([]);
@@ -104,32 +105,36 @@ export default function CommentSection({ postId, currentUser, bannedWords }) {
           <button
             className={`action-btn btn-sm ${isLiked ? "liked" : ""}`}
             onClick={() => likeComment(c)}
-            style={{ padding: "4px 10px", fontSize: 12 }}
+            style={{ padding: "4px 10px", fontSize: 12, display: "flex", alignItems: "center", gap: 5 }}
           >
-            ♥ {c.likes || 0}
+            <Icon.Heart size={12} filled={isLiked} /> {c.likes || 0}
           </button>
           {/* Allow reply on both top-level and nested comments */}
           <button
             className="action-btn btn-sm"
             onClick={() => { setReplyTo(isReplying ? null : c.id); setReplyText(""); }}
-            style={{ padding: "4px 10px", fontSize: 12 }}
+            style={{ padding: "4px 10px", fontSize: 12, display: "flex", alignItems: "center", gap: 5 }}
           >
-            ↩ Reply
+            <Icon.Reply size={12} /> Reply
           </button>
-          <button className="action-btn btn-sm" onClick={() => setReport({ type: "comment", id: c.id, uid: c.uid })} style={{ padding: "4px 10px", fontSize: 12 }}>⚑ Report</button>
-          {(c.uid === currentUser.uid || currentUser.role === "admin") && (
-            <button className="action-btn btn-sm" onClick={() => deleteComment(c.id)} style={{ padding: "4px 10px", fontSize: 12, color: "var(--danger)" }}>🗑</button>
-          )}
           {/* Collapse/expand toggle — shown only when there are replies */}
           {commentReplies.length > 0 && (
             <button
               className="action-btn btn-sm"
               onClick={() => setExpandedReplies(prev => ({ ...prev, [c.id]: !isExpanded }))}
-              style={{ padding: "4px 10px", fontSize: 12, color: "var(--accent)", marginLeft: "auto" }}
+              style={{ padding: "4px 10px", fontSize: 12, color: "var(--accent)", display: "flex", alignItems: "center", gap: 5 }}
             >
-              {isExpanded ? `▲ Hide ${commentReplies.length} ${commentReplies.length === 1 ? "reply" : "replies"}` : `▼ ${commentReplies.length} ${commentReplies.length === 1 ? "reply" : "replies"}`}
+              <span style={{ display: "inline-flex", transform: isExpanded ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}><Icon.ChevronDown size={11} /></span>
+              {isExpanded ? `Hide ${commentReplies.length} ${commentReplies.length === 1 ? "reply" : "replies"}` : `${commentReplies.length} ${commentReplies.length === 1 ? "reply" : "replies"}`}
             </button>
           )}
+          {/* Report/delete are lower-frequency, more consequential actions — icon-only, pushed right, distinct from like/reply */}
+          <span style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
+            <button className="icon-btn" title="Report" onClick={() => setReport({ type: "comment", id: c.id, uid: c.uid })}><Icon.Flag size={13} /></button>
+            {(c.uid === currentUser.uid || currentUser.role === "admin") && (
+              <button className="icon-btn" title="Delete" onClick={() => deleteComment(c.id)} style={{ color: "var(--danger)" }}><Icon.Trash size={13} /></button>
+            )}
+          </span>
         </div>
 
         {/* Reply input */}
@@ -163,7 +168,7 @@ export default function CommentSection({ postId, currentUser, bannedWords }) {
                 </div>
               ))}
             </div>
-            ▼ View {commentReplies.length} {commentReplies.length === 1 ? "reply" : "replies"}
+            <Icon.ChevronDown size={11} /> View {commentReplies.length} {commentReplies.length === 1 ? "reply" : "replies"}
           </div>
         )}
 
@@ -185,7 +190,7 @@ export default function CommentSection({ postId, currentUser, bannedWords }) {
         <button className="btn btn-primary" onClick={() => addComment()} disabled={loading || !newComment.trim()}>{loading ? <Spinner /> : "Post"}</button>
       </div>
       {topLevel.length === 0
-        ? <div className="empty"><div className="empty-icon">💬</div><div className="empty-text">No comments yet.</div></div>
+        ? <div className="empty"><div className="empty-icon"><Icon.Message size={28} /></div><div className="empty-text">No comments yet.</div></div>
         : topLevel.map(c => renderComment(c, 0))
       }
     </div>

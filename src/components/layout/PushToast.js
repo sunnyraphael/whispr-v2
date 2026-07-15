@@ -1,3 +1,5 @@
+import { Icon } from "../shared/Icons";
+
 export default function PushToast({ toast }) {
   if (!toast) return null;
   return (
@@ -9,7 +11,13 @@ export default function PushToast({ toast }) {
       display: "flex", gap: 12, alignItems: "flex-start",
       animation: "fadeIn 0.3s ease",
     }}>
-      <div style={{ fontSize: 22 }}>🔔</div>
+      <div style={{
+        width: 34, height: 34, borderRadius: 9, flexShrink: 0,
+        background: "rgba(232,115,74,0.12)", color: "var(--accent)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <Icon.Bell size={16} />
+      </div>
       <div>
         <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>{toast.title}</div>
         <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.5 }}>{toast.body}</div>

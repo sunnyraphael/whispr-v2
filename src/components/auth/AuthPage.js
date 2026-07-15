@@ -4,6 +4,7 @@ import { auth } from "../../firebase";
 import { getDeviceFingerprint } from "../../utils/fingerprint";
 import Spinner from "../shared/Spinner";
 import TermsModal from "./TermsModal";
+import { Icon } from "../shared/Icons";
 
 export default function AuthPage({ theme, toggleTheme, onSignupSuccess }) {
   const [mode, setMode] = useState("login");
@@ -86,22 +87,27 @@ export default function AuthPage({ theme, toggleTheme, onSignupSuccess }) {
         />
       )}
       <div className="auth-card fade-in">
-        <button className="theme-btn" style={{ marginLeft: "auto", display: "flex", marginBottom: 12 }} onClick={toggleTheme}>{theme === "dark" ? "☀️" : "🌙"}</button>
+        <button className="theme-btn" style={{ marginLeft: "auto", display: "flex", marginBottom: 12 }} onClick={toggleTheme}>{theme === "dark" ? <Icon.Sun /> : <Icon.Moon />}</button>
         <div className="auth-logo">wh<span style={{ color: "var(--accent)" }}>i</span>spr</div>
         <div className="auth-sub">{mode === "signup" ? "Create your anonymous account." : "Welcome back. Your secret is safe."}</div>
         {error && (
           <div className="alert alert-error">
             {error}
             {blockedFp && (
-              <div style={{ marginTop: 10, padding: 10, background: "rgba(0,0,0,0.2)", borderRadius: 8 }}>
-                <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 4 }}>Your device code — share this with the admin to get unblocked:</div>
-                <div style={{ fontFamily: "monospace", fontSize: 11, wordBreak: "break-all", color: "var(--accent2)" }}>{blockedFp}</div>
-                <button onClick={() => { navigator.clipboard?.writeText(blockedFp); alert("Copied!"); }} style={{ marginTop: 6, background: "none", border: "1px solid var(--border)", color: "var(--muted)", borderRadius: 6, padding: "3px 10px", fontSize: 11, cursor: "pointer" }}>📋 Copy Code</button>
+              <div className="device-code-box">
+                <div className="device-code-label"><Icon.Smartphone size={12} /> Your device code</div>
+                <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 10, lineHeight: 1.5 }}>Email this to an admin to get unblocked.</div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <div className="device-code-value">{blockedFp}</div>
+                  <button className="device-code-copy" onClick={() => { navigator.clipboard?.writeText(blockedFp); alert("Copied!"); }}>
+                    <Icon.Copy size={12} /> Copy
+                  </button>
+                </div>
               </div>
             )}
           </div>
         )}
-        {mode === "signup" && <div className="alert alert-info">✨ Use any email and a password of your choice. You'll get a random anonymous display name — no one will know it's you.</div>}
+        {mode === "signup" && <div className="alert alert-info" style={{ display: "flex", gap: 8, alignItems: "flex-start" }}><Icon.Info size={14} /><span>Use any email and a password of your choice. You'll get a random anonymous display name — no one will know it's you.</span></div>}
         <div className="auth-field">
           <label className="auth-label">Email</label>
           <input className="auth-input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="any email you want" onKeyDown={e => e.key === "Enter" && handleAuth()} autoCapitalize="none" />
@@ -109,7 +115,7 @@ export default function AuthPage({ theme, toggleTheme, onSignupSuccess }) {
         <div className="auth-field">
           <label className="auth-label">Password</label>
           <input className="auth-input" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" onKeyDown={e => e.key === "Enter" && handleAuth()} />
-          {mode === "signup" && <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>⚠️ Remember your email and password — if you forget them, contact support via the 💬 button.</div>}
+          {mode === "signup" && <div style={{ display: "flex", gap: 5, alignItems: "flex-start", fontSize: 11, color: "var(--muted)", marginTop: 4 }}><Icon.AlertTriangle size={12} /><span>Remember your email and password — if you forget them, contact support via the chat button.</span></div>}
         </div>
         {mode === "signup" && (
           <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12, lineHeight: 1.6 }}>
@@ -129,7 +135,7 @@ export default function AuthPage({ theme, toggleTheme, onSignupSuccess }) {
         </div>
         <div style={{ borderTop: "1px solid var(--border)", marginTop: 20, paddingTop: 16, textAlign: "center" }}>
           <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 8 }}>Need help or having trouble logging in?</div>
-          <a href="mailto:ifeoluwaraphael0@gmail.com" style={{ fontSize: 12, color: "var(--accent)", textDecoration: "none", fontWeight: 600 }}>💬 Contact Support</a>
+          <a href="mailto:ifeoluwaraphael0@gmail.com" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--accent)", textDecoration: "none", fontWeight: 600 }}><Icon.Chat size={13} /> Contact Support</a>
         </div>
       </div>
     </div>

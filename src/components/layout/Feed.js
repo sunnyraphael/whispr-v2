@@ -22,6 +22,7 @@ import PostModal from "../posts/PostModal";
 import ComposePost from "../posts/ComposePost";
 import ProfilePage from "../../pages/ProfilePage";
 import BookmarksPage from "../../pages/BookmarksPage";
+import { Icon } from "../shared/Icons";
 
 export default function Feed({ currentUser, isAdmin, theme, toggleTheme, maintenanceMode }) {
   const pushToast = useForegroundPush();
@@ -303,7 +304,7 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
     <>
       <StyleTag theme={theme} />
       <div className="maintenance-screen" style={{ background: "var(--bg)" }}>
-        <div className="maintenance-icon">🔧</div>
+        <div className="maintenance-icon"><Icon.Wrench size={42} /></div>
         <div className="maintenance-title">Under Maintenance</div>
         <div className="maintenance-sub">Whispr is currently undergoing scheduled maintenance. We'll be back shortly — hang tight!</div>
         <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 8 }}>— The Whispr Team</div>
@@ -318,7 +319,7 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
       <nav className="navbar">
         <span className="logo">wh<span>i</span>spr</span>
         <div className="nav-right">
-          <button className="theme-btn" onClick={toggleTheme}>{theme === "dark" ? "☀️" : "🌙"}</button>
+          <button className="theme-btn" onClick={toggleTheme}>{theme === "dark" ? <Icon.Sun /> : <Icon.Moon />}</button>
           <button className="btn btn-ghost" onClick={() => setShowAdmin(false)}>← Back to Feed</button>
         </div>
       </nav>
@@ -333,11 +334,11 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
         <span className="logo">wh<span>i</span>spr</span>
         <div className="nav-right">
           <div className="search-bar">
-            <span className="search-icon">🔍</span>
+            <span className="search-icon"><Icon.Search size={14} /></span>
             <input className="search-input" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
           </div>
-          <button className="theme-btn" onClick={toggleTheme}>{theme === "dark" ? "☀️" : "🌙"}</button>
-          <NotificationBell currentUser={currentUser} />
+          <button className="theme-btn" onClick={toggleTheme}>{theme === "dark" ? <Icon.Sun /> : <Icon.Moon />}</button>
+          <NotificationBell currentUser={currentUser} onPostClick={setOpenPost} />
           <SupportButton currentUser={currentUser} />
           <div className="profile-menu" ref={profileRef}>
             <button className="profile-btn" onClick={() => setProfileOpen(o => !o)}>
@@ -347,9 +348,9 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
             {profileOpen && (
               <div className="profile-dropdown fade-in">
                 <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--border)", fontSize: 12, color: "var(--muted)" }}>Anonymous account</div>
-                <button className="dropdown-item" onClick={() => { setPage("profile"); setProfileOpen(false); }}>👤 My Profile</button>
-                <button className="dropdown-item" onClick={() => { setPage("bookmarks"); setProfileOpen(false); }}>🔖 Bookmarks ({bookmarks.length})</button>
-                {isAdmin && <button className="dropdown-item" onClick={() => { setShowAdmin(true); setProfileOpen(false); }}>⚙️ Admin Panel</button>}
+                <button className="dropdown-item" onClick={() => { setPage("profile"); setProfileOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 9 }}><Icon.User size={14} /> My Profile</button>
+                <button className="dropdown-item" onClick={() => { setPage("bookmarks"); setProfileOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 9 }}><Icon.Bookmark size={14} /> Bookmarks ({bookmarks.length})</button>
+                {isAdmin && <button className="dropdown-item" onClick={() => { setShowAdmin(true); setProfileOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 9 }}><Icon.Settings size={14} /> Admin Panel</button>}
                 <button className="dropdown-item danger" onClick={() => signOut(auth)}>Sign Out</button>
               </div>
             )}
@@ -360,12 +361,12 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
       {/* Mobile search bar — full width below navbar, hidden on desktop */}
       <div className="mobile-search-bar">
         <input
-          placeholder="🔍 Search posts..."
+          placeholder="Search posts..."
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
         {search && (
-          <button className="mobile-search-clear" onClick={() => setSearch("")}>✕</button>
+          <button className="mobile-search-clear" onClick={() => setSearch("")}><Icon.X size={12} /></button>
         )}
       </div>
 
@@ -381,7 +382,7 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
           <div style={{ maxWidth: 1200, margin: "0 auto", padding: "12px 16px" }}>
             <button className="btn btn-ghost btn-sm" onClick={() => setPage("feed")}>← Back to Feed</button>
           </div>
-          <BookmarksPage currentUser={currentUser} bookmarks={bookmarks} allCategories={allCategories} bannedWords={bannedWords} isAdmin={isAdmin} />
+          <BookmarksPage currentUser={currentUser} bookmarks={bookmarks} allCategories={allCategories} bannedWords={bannedWords} isAdmin={isAdmin} onBookmark={toggleBookmark} />
         </div>
       ) : (
         <div className="main">
@@ -390,7 +391,7 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
             {announcements.map(a => (
               <div key={a.id} className="announcement card-pad">
                 <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                  <div style={{ fontSize: 20 }}>📢</div>
+                  <Icon.Chat size={18} style={{ color: "var(--accent)", flexShrink: 0, marginTop: 1 }} />
                   <div>
                     <div className="announcement-badge">Site Announcement</div>
                     <div style={{ fontSize: 14, marginTop: 4, lineHeight: 1.6 }}>{a.content}</div>
@@ -402,8 +403,8 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
 
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 0 }}>
               <div className="section-tabs" style={{ flex: 1, marginBottom: 0 }}>
-                {[["latest","Latest"],["trending","🔥 Trending"],["mostCommented","💬 Most Discussed"]].map(([id, label]) =>
-                  <button key={id} className={`section-tab ${section === id ? "active" : ""}`} onClick={() => setSection(id)}>{label}</button>
+                {[["latest","Latest",null],["trending","Trending",Icon.BarChart],["mostCommented","Most Discussed",Icon.Message]].map(([id, label, TabIcon]) =>
+                  <button key={id} className={`section-tab ${section === id ? "active" : ""}`} onClick={() => setSection(id)} style={{ display: "flex", alignItems: "center", gap: 5 }}>{TabIcon && <TabIcon size={12} />} {label}</button>
                 )}
               </div>
               <button
@@ -425,7 +426,7 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
                 onMouseEnter={e => e.currentTarget.style.color = "var(--accent)"}
                 onMouseLeave={e => e.currentTarget.style.color = "var(--muted)"}
               >
-                {loading ? "⏳" : "🔄"}
+                <span style={{ display: "flex", animation: loading ? "spin 1s linear infinite" : "none" }}><Icon.RefreshCw size={14} /></span>
               </button>
             </div>
             {section === "latest" && (
@@ -433,20 +434,23 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
                 {[["newest","Newest"],["popular","Popular"]].map(([id, label]) =>
                   <button key={id} className={`tab ${feedTab === id ? "active" : ""}`} onClick={() => setFeedTab(id)}>{label}</button>
                 )}
-                <button className={`tab ${feedTab === "random" ? "active" : ""}`} onClick={() => { setFeedTab("random"); setRandomSeed(s => s + 1); }}>🎲 Random</button>
+                <button className={`tab ${feedTab === "random" ? "active" : ""}`} onClick={() => { setFeedTab("random"); setRandomSeed(s => s + 1); }} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="6" height="6" rx="1"/><rect x="16" y="6" width="6" height="6" rx="1"/><rect x="9" y="16" width="6" height="6" rx="1"/></svg>
+                  Random
+                </button>
               </div>
             )}
             {/* Admin purge button */}
             {isAdmin && (
               <div style={{ marginBottom: 12, textAlign: "right" }}>
-                <button className="btn btn-warn btn-sm" onClick={purgeExpiredPosts}>🗑 Purge Expired Posts</button>
+                <button className="btn btn-warn btn-sm" onClick={purgeExpiredPosts} style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon.Trash size={12} /> Purge Expired Posts</button>
               </div>
             )}
             {loading ? <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner /></div> : (() => {
               const all = sortedPosts();
               if (all.length === 0 && !hasOlder && !hasNewer) return (
                 <div className="empty">
-                  <div className="empty-icon">{search ? "🔍" : "🌑"}</div>
+                  <div className="empty-icon">{search ? <Icon.Search size={28} /> : <Icon.Edit size={28} />}</div>
                   <div className="empty-text">{search ? `No posts matching "${search}"` : "No posts yet. Be the first to whisper."}</div>
                 </div>
               );
@@ -456,7 +460,7 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
                   {sponsoredAd && (
                     <div style={{
                       background: "var(--surface)",
-                      border: "1px solid rgba(124,58,237,0.35)",
+                      border: "1px solid rgba(232,115,74,0.3)",
                       borderRadius: "var(--radius)",
                       padding: "14px 16px",
                       marginBottom: 16,
@@ -466,7 +470,7 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
                       </div>
                       <p style={{ fontSize: 15, lineHeight: 1.6, marginBottom: 10, color: "var(--text)" }}>{sponsoredAd.adText}</p>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-                        <span style={{ fontSize: 13, color: "var(--muted)" }}>📌 {sponsoredAd.businessName}</span>
+                        <span style={{ fontSize: 13, color: "var(--muted)", display: "flex", alignItems: "center", gap: 5 }}><Icon.Pin size={11} /> {sponsoredAd.businessName}</span>
                         {sponsoredAd.link && (
                           <a href={sponsoredAd.link} target="_blank" rel="noopener noreferrer"
                              style={{ fontSize: 13, color: "var(--accent)", textDecoration: "none", fontWeight: 600 }}>
@@ -488,14 +492,14 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
                         display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                       }}
                     >
-                      ✨ New posts available — tap to refresh
+                      <Icon.RefreshCw size={13} /> New posts available — tap to refresh
                     </button>
                   )}
-                  {/* ↑ Load newer — at the TOP, mobile-friendly */}
+                  {/* Load newer — at the TOP, mobile-friendly */}
                   {hasNewer && (
-                    <button className="btn btn-ghost" style={{ width: "100%", justifyContent: "center", marginBottom: 12 }}
+                    <button className="btn btn-ghost" style={{ width: "100%", justifyContent: "center", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}
                       onClick={loadNewerPosts} disabled={loadingMore}>
-                      {loadingMore ? <Spinner /> : "↑ Load newer posts"}
+                      {loadingMore ? <Spinner /> : <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg> Load newer posts</>}
                     </button>
                   )}
                   {/* Page indicator */}
@@ -503,18 +507,18 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
                     Page {pageNum} {hasOlder || hasNewer ? "· scroll down for older" : "· end of posts"}
                   </div>
                   {all.map(p => <PostCard key={p.id} post={p} currentUser={currentUser} onOpen={() => setOpenPost(p)} allCategories={allCategories} onBookmark={toggleBookmark} isBookmarked={bookmarks.includes(p.id)} isAdmin={isAdmin} onPostUpdate={updatePostInState} />)}
-                  {/* ↓ Load older — at the BOTTOM */}
+                  {/* Load older — at the BOTTOM */}
                   {hasOlder && (
-                    <button className="btn btn-ghost" style={{ width: "100%", justifyContent: "center", marginTop: 12 }}
+                    <button className="btn btn-ghost" style={{ width: "100%", justifyContent: "center", marginTop: 12, display: "flex", alignItems: "center", gap: 6 }}
                       onClick={loadOlderPosts} disabled={loadingMore}>
-                      {loadingMore ? <Spinner /> : "↓ Load older posts"}
+                      {loadingMore ? <Spinner /> : <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg> Load older posts</>}
                     </button>
                   )}
                 </>
               );
             })()}
           </div>
-          <Sidebar activeCategory={activeCategory} onCategoryChange={setActiveCategory} trendingPosts={trending} onPostClick={setOpenPost} allCategories={allCategories} />
+          <Sidebar activeCategory={activeCategory} onCategoryChange={setActiveCategory} trendingPosts={trending} onPostClick={setOpenPost} allCategories={allCategories} posts={posts} />
         </div>
       )}
       {openPost && <PostModal post={openPost} currentUser={currentUser} onClose={() => setOpenPost(null)} allCategories={allCategories} bannedWords={bannedWords} isAdmin={isAdmin} />}
@@ -535,7 +539,7 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
         onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.08)"; }}
         onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
       >
-        ✏️
+        <Icon.Edit size={20} />
       </button>
 
       {/* Donate — smaller floating button, bottom right */}
@@ -557,7 +561,7 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
         onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.05)"; }}
         onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
       >
-        ☕ Donate
+        <Icon.Coffee size={14} /> Donate
       </a>
 
       {/* Compose Bottom Sheet */}
@@ -591,9 +595,9 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
                 style={{
                   background: "var(--surface3)", border: "none", borderRadius: "50%",
                   width: 30, height: 30, cursor: "pointer", color: "var(--text)",
-                  fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center",
+                  display: "flex", alignItems: "center", justifyContent: "center",
                 }}
-              >✕</button>
+              ><Icon.X size={13} /></button>
             </div>
             <div style={{ padding: "0 4px" }}>
               <ComposePost
