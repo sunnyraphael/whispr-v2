@@ -7,7 +7,7 @@ import {
 } from "firebase/firestore";
 import { db, auth } from "../../firebase";
 import { timeAgo } from "../../utils/time";
-import { DEFAULT_CATEGORIES, DEFAULT_BANNED_KEYWORDS, DISAPPEAR_MS } from "../../constants";
+import { DEFAULT_CATEGORIES, DEFAULT_BANNED_KEYWORDS, DISAPPEAR_MS, POST_COOLDOWN_MS } from "../../constants";
 import { useForegroundPush } from "../../hooks/useForegroundPush";
 import Avatar from "../shared/Avatar";
 import Spinner from "../shared/Spinner";
@@ -34,6 +34,16 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [search, setSearch] = useState("");
+  // Real search: fetches a broad batch of recent posts from Firestore and
+  // filters client-side, instead of only filtering whatever's already on the
+  // current page. Firestore has no native full-text search, so this is a
+  // deliberate middle ground — searches real content, not just the loaded
+  // page, but is still bounded (SEARCH_FETCH_LIMIT) rather than scanning the
+  // entire database on every keystroke.
+  const [searchResults, setSearchResults] = useState(null); // null = not searching
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchDebounce = useRef(null);
+  const SEARCH_FETCH_LIMIT = 300;
   const [showAdmin, setShowAdmin] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [page, setPage] = useState("feed");
@@ -41,8 +51,47 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
   const [allCategories, setAllCategories] = useState([...DEFAULT_CATEGORIES]);
   const [bannedWords, setBannedWords] = useState([...DEFAULT_BANNED_KEYWORDS]);
   const [announcements, setAnnouncements] = useState([]);
-  const [randomSeed, setRandomSeed] = useState(0);
   const [composeOpen, setComposeOpen] = useState(false);
+  // Draggable pencil FAB position — persisted so it stays put across reloads.
+  // Stored as distance from bottom/left (not top/left) since that's how the
+  // button is anchored, and it keeps working correctly if the window resizes.
+  const [fabPos, setFabPos] = useState(() => {
+    try {
+      const saved = localStorage.getItem("whispr_fab_pos");
+      return saved ? JSON.parse(saved) : { bottom: 24, left: 24 };
+    } catch { return { bottom: 24, left: 24 }; }
+  });
+  const fabDrag = useRef({ dragging: false, moved: false, startX: 0, startY: 0 });
+  const [fabCooldown, setFabCooldown] = useState(0);
+  const fabCooldownTimer = useRef(null);
+
+  // Mirror ComposePost's own cooldown check so the floating pencil button can
+  // show remaining time without the compose sheet being open.
+  const startFabCooldown = useCallback((seconds) => {
+    if (fabCooldownTimer.current) clearInterval(fabCooldownTimer.current);
+    setFabCooldown(seconds);
+    fabCooldownTimer.current = setInterval(() => {
+      setFabCooldown(prev => {
+        if (prev <= 1) { clearInterval(fabCooldownTimer.current); fabCooldownTimer.current = null; return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
+
+  useEffect(() => {
+    const checkFabCooldown = async () => {
+      const userSnap = await getDoc(doc(db, "users", currentUser.uid));
+      if (!userSnap.exists()) return;
+      const data = userSnap.data();
+      if (data.lastPostAt) {
+        const lastPost = data.lastPostAt.toDate ? data.lastPostAt.toDate() : new Date(data.lastPostAt);
+        const remaining = Math.ceil((POST_COOLDOWN_MS - (Date.now() - lastPost.getTime())) / 1000);
+        if (remaining > 0) startFabCooldown(remaining);
+      }
+    };
+    checkFabCooldown();
+    return () => { if (fabCooldownTimer.current) clearInterval(fabCooldownTimer.current); };
+  }, [currentUser.uid, startFabCooldown]);
   const [globalTrending, setGlobalTrending] = useState([]);       // platform-wide top by score
   const [globalMostCommented, setGlobalMostCommented] = useState([]); // platform-wide top by comments
   const [sponsoredAd, setSponsoredAd] = useState(null); // sponsored ad shown at top of feed
@@ -122,16 +171,17 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
   }, []);
 
   // ── Fetch feed with getDocs (saves reads vs onSnapshot) ────────────────────
-  // onSnapshot was draining quota — it re-read ALL posts every time any field
-  // changed (likes, reactions etc). Now we fetch once and refresh manually.
-  const [newPostsAvailable, setNewPostsAvailable] = useState(false);
+  // A broad onSnapshot on the whole feed was tried before and drained quota —
+  // it re-read ALL posts on any field change (likes, reactions, etc). This
+  // listener is deliberately narrow (limit(1), only the newest doc's
+  // timestamp/uid) specifically to avoid repeating that — it should NOT be
+  // widened to listen on the full posts list without re-checking read costs.
   const latestPostCreatedAt = useRef(null); // track newest post timestamp
 
   const fetchFeed = useCallback(async (cat = activeCategory) => {
     setLoading(true);
     setHasNewer(false);
     setPageNum(1);
-    setNewPostsAvailable(false);
     try {
       const q = buildBaseQuery(cat);
       const snap = await getDocs(q);
@@ -152,30 +202,32 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
   // Initial load and reload when category changes
   useEffect(() => { fetchFeed(activeCategory); }, [activeCategory, fetchFeed]);
 
-  // Poll every 60s to check if new posts arrived — much cheaper than onSnapshot
+  // Real-time new-post detection via onSnapshot, scoped narrowly (limit 1) so
+  // it's genuinely cheap — this only listens for whether a newer post EXISTS,
+  // it does not stream the whole feed live. When one appears, it's fetched
+  // and injected automatically instead of waiting for a manual refresh tap.
   useEffect(() => {
-    const interval = setInterval(async () => {
-      try {
-        const q = query(
-          collection(db, "posts"),
-          where("deleted", "==", false),
-          ...(activeCategory ? [where("category", "==", activeCategory)] : []),
-          orderBy("createdAt", "desc"),
-          limit(1)
-        );
-        const snap = await getDocs(q);
-        if (snap.docs.length > 0 && latestPostCreatedAt.current) {
-          const newest = snap.docs[0].data().createdAt;
-          // Compare timestamps — if newer post exists, show the refresh banner
-          if (newest && latestPostCreatedAt.current &&
-              newest.seconds > latestPostCreatedAt.current.seconds) {
-            setNewPostsAvailable(true);
-          }
-        }
-      } catch (_) {}
-    }, 60000); // check every 60 seconds — costs 1 read per user per minute
-    return () => clearInterval(interval);
-  }, [activeCategory]);
+    const q = query(
+      collection(db, "posts"),
+      where("deleted", "==", false),
+      ...(activeCategory ? [where("category", "==", activeCategory)] : []),
+      orderBy("createdAt", "desc"),
+      limit(1)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      if (snap.docs.length === 0 || !latestPostCreatedAt.current) return;
+      const newest = snap.docs[0].data().createdAt;
+      const newestDoc = snap.docs[0];
+      if (!newest || newest.seconds <= latestPostCreatedAt.current.seconds) return;
+      // Don't auto-inject a post the current user just made themselves —
+      // onNewPost already handles that instantly, this is for posts from others.
+      if (newestDoc.data().uid === currentUser.uid) { latestPostCreatedAt.current = newest; return; }
+      const newPost = { id: newestDoc.id, ...newestDoc.data() };
+      setPosts(prev => prev.some(p => p.id === newPost.id) ? prev : [newPost, ...prev]);
+      latestPostCreatedAt.current = newest;
+    }, (err) => console.error("Feed listener error:", err));
+    return () => unsub();
+  }, [activeCategory, currentUser.uid]);
 
   // ── Load OLDER posts (next page going back in time) ─────────────────────────
   const loadOlderPosts = async () => {
@@ -277,12 +329,17 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
   };
 
   const sortedPosts = useCallback(() => {
+    // When actively searching, use the broader Firestore-backed search results
+    // instead of the normal page's posts — this is what makes search actually
+    // find content beyond whatever happens to be currently loaded.
+    if (search.trim()) {
+      const list = searchResults || [];
+      return [...list].sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+    }
     let list = [...posts];
-    if (search) { const s = search.toLowerCase(); list = list.filter(p => p.content.toLowerCase().includes(s) || p.username.toLowerCase().includes(s)); }
     if (section === "latest") {
       list.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
       if (feedTab === "popular") list.sort((a, b) => (b.score || 0) - (a.score || 0));
-      if (feedTab === "random") { const seed = randomSeed; list.sort((a, b) => Math.sin(seed + a.id.charCodeAt(0)) - Math.sin(seed + b.id.charCodeAt(0))); }
     } else if (section === "trending") {
       // Use platform-wide global trending list — falls back to current page if not loaded yet
       list = globalTrending.length > 0 ? [...globalTrending] : list.sort((a, b) => (b.score || 0) - (a.score || 0));
@@ -295,9 +352,71 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
       return [...pinned, ...rest];
     }
     return list;
-  }, [posts, section, feedTab, search, randomSeed, globalTrending, globalMostCommented]);
+  }, [posts, section, feedTab, search, searchResults, globalTrending, globalMostCommented]);
 
   const trending = globalTrending.length > 0 ? globalTrending : [...posts].sort((a, b) => (b.score || 0) - (a.score || 0));
+
+  // Debounced real search — waits 400ms after typing stops, then queries
+  // Firestore directly for a broad batch of recent posts and filters them
+  // client-side. Separate from normal pagination so it doesn't disturb the
+  // regular feed's scroll position or loaded posts.
+  useEffect(() => {
+    if (searchDebounce.current) clearTimeout(searchDebounce.current);
+    if (!search.trim()) { setSearchResults(null); return; }
+    searchDebounce.current = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const snap = await getDocs(query(
+          collection(db, "posts"),
+          where("deleted", "==", false),
+          orderBy("createdAt", "desc"),
+          limit(SEARCH_FETCH_LIMIT)
+        ));
+        const s = search.trim().toLowerCase();
+        const matches = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(p => p.content?.toLowerCase().includes(s) || p.username?.toLowerCase().includes(s));
+        setSearchResults(matches);
+      } catch (err) {
+        console.error("Search failed:", err);
+        setSearchResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 400);
+    return () => { if (searchDebounce.current) clearTimeout(searchDebounce.current); };
+  }, [search]);
+
+  // Pencil FAB drag handlers. Tracks whether the pointer actually moved so a
+  // plain tap still opens compose — only a real drag repositions the button.
+  const fabPointerDown = (e) => {
+    fabDrag.current = { dragging: true, moved: false, startX: e.clientX, startY: e.clientY };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const fabPointerMove = (e) => {
+    if (!fabDrag.current.dragging) return;
+    const dx = e.clientX - fabDrag.current.startX;
+    const dy = e.clientY - fabDrag.current.startY;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) fabDrag.current.moved = true;
+    if (!fabDrag.current.moved) return;
+    const size = 56;
+    setFabPos(prev => {
+      const nextLeft = Math.min(Math.max(0, prev.left + dx), window.innerWidth - size);
+      const nextBottom = Math.min(Math.max(0, prev.bottom - dy), window.innerHeight - size);
+      return { left: Math.round(nextLeft), bottom: Math.round(nextBottom) };
+    });
+    fabDrag.current.startX = e.clientX;
+    fabDrag.current.startY = e.clientY;
+  };
+  const fabPointerUp = () => {
+    if (fabDrag.current.moved) {
+      setFabPos(prev => {
+        try { localStorage.setItem("whispr_fab_pos", JSON.stringify(prev)); } catch {}
+        return prev;
+      });
+    }
+    fabDrag.current.dragging = false;
+  };
 
   // After all hooks — instantly shows maintenance screen if toggled on while user is active
   if (maintenanceMode && !isAdmin) return (
@@ -351,6 +470,7 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
                 <button className="dropdown-item" onClick={() => { setPage("profile"); setProfileOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 9 }}><Icon.User size={14} /> My Profile</button>
                 <button className="dropdown-item" onClick={() => { setPage("bookmarks"); setProfileOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 9 }}><Icon.Bookmark size={14} /> Bookmarks ({bookmarks.length})</button>
                 {isAdmin && <button className="dropdown-item" onClick={() => { setShowAdmin(true); setProfileOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 9 }}><Icon.Settings size={14} /> Admin Panel</button>}
+                <a href="https://paystack.shop/pay/donatetowhispr-app" target="_blank" rel="noopener noreferrer" className="dropdown-item" onClick={() => setProfileOpen(false)} style={{ display: "flex", alignItems: "center", gap: 9, textDecoration: "none" }}><Icon.Coffee size={14} /> Donate</a>
                 <button className="dropdown-item danger" onClick={() => signOut(auth)}>Sign Out</button>
               </div>
             )}
@@ -434,10 +554,6 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
                 {[["newest","Newest"],["popular","Popular"]].map(([id, label]) =>
                   <button key={id} className={`tab ${feedTab === id ? "active" : ""}`} onClick={() => setFeedTab(id)}>{label}</button>
                 )}
-                <button className={`tab ${feedTab === "random" ? "active" : ""}`} onClick={() => { setFeedTab("random"); setRandomSeed(s => s + 1); }} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="6" height="6" rx="1"/><rect x="16" y="6" width="6" height="6" rx="1"/><rect x="9" y="16" width="6" height="6" rx="1"/></svg>
-                  Random
-                </button>
               </div>
             )}
             {/* Admin purge button */}
@@ -446,12 +562,16 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
                 <button className="btn btn-warn btn-sm" onClick={purgeExpiredPosts} style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon.Trash size={12} /> Purge Expired Posts</button>
               </div>
             )}
-            {loading ? <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner /></div> : (() => {
+            {search.trim() && searchLoading ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: 40, color: "var(--muted)" }}>
+                <Spinner /><span style={{ fontSize: 13 }}>Searching...</span>
+              </div>
+            ) : loading ? <div style={{ display: "flex", justifyContent: "center", padding: 40 }}><Spinner /></div> : (() => {
               const all = sortedPosts();
               if (all.length === 0 && !hasOlder && !hasNewer) return (
                 <div className="empty">
                   <div className="empty-icon">{search ? <Icon.Search size={28} /> : <Icon.Edit size={28} />}</div>
-                  <div className="empty-text">{search ? `No posts matching "${search}"` : "No posts yet. Be the first to whisper."}</div>
+                  <div className="empty-text">{search ? `No posts found for "${search}"` : "No posts yet. Be the first to whisper."}</div>
                 </div>
               );
               return (
@@ -480,35 +600,23 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
                       </div>
                     </div>
                   )}
-                  {/* New posts banner — shows when polling detects new content */}
-                  {newPostsAvailable && (
-                    <button
-                      onClick={() => fetchFeed(activeCategory)}
-                      style={{
-                        width: "100%", marginBottom: 12, padding: "10px",
-                        background: "var(--accent)", color: "#fff", border: "none",
-                        borderRadius: "var(--radius-sm)", cursor: "pointer",
-                        fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 13,
-                        display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                      }}
-                    >
-                      <Icon.RefreshCw size={13} /> New posts available — tap to refresh
-                    </button>
-                  )}
+                  {/* Pagination — normal feed only, not during search.
+                      A search result set isn't paginated the same way, and "load older"
+                      would confusingly load unfiltered feed posts, not more matches. */}
                   {/* Load newer — at the TOP, mobile-friendly */}
-                  {hasNewer && (
+                  {!search.trim() && hasNewer && (
                     <button className="btn btn-ghost" style={{ width: "100%", justifyContent: "center", marginBottom: 12, display: "flex", alignItems: "center", gap: 6 }}
                       onClick={loadNewerPosts} disabled={loadingMore}>
                       {loadingMore ? <Spinner /> : <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg> Load newer posts</>}
                     </button>
                   )}
-                  {/* Page indicator */}
+                  {/* Page indicator / search result count */}
                   <div style={{ fontSize: 12, color: "var(--muted)", textAlign: "center", marginBottom: 12 }}>
-                    Page {pageNum} {hasOlder || hasNewer ? "· scroll down for older" : "· end of posts"}
+                    {search.trim() ? `${all.length} result${all.length !== 1 ? "s" : ""} for "${search}" · searching the last ${SEARCH_FETCH_LIMIT} posts` : `Page ${pageNum} ${hasOlder || hasNewer ? "· scroll down for older" : "· end of posts"}`}
                   </div>
                   {all.map(p => <PostCard key={p.id} post={p} currentUser={currentUser} onOpen={() => setOpenPost(p)} allCategories={allCategories} onBookmark={toggleBookmark} isBookmarked={bookmarks.includes(p.id)} isAdmin={isAdmin} onPostUpdate={updatePostInState} />)}
                   {/* Load older — at the BOTTOM */}
-                  {hasOlder && (
+                  {!search.trim() && hasOlder && (
                     <button className="btn btn-ghost" style={{ width: "100%", justifyContent: "center", marginTop: 12, display: "flex", alignItems: "center", gap: 6 }}
                       onClick={loadOlderPosts} disabled={loadingMore}>
                       {loadingMore ? <Spinner /> : <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg> Load older posts</>}
@@ -522,47 +630,28 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
         </div>
       )}
       {openPost && <PostModal post={openPost} currentUser={currentUser} onClose={() => setOpenPost(null)} allCategories={allCategories} bannedWords={bannedWords} isAdmin={isAdmin} />}
-      {/* Floating Compose Button — bottom left */}
+      {/* Floating Compose Button — draggable, dims and shows a countdown while on cooldown */}
       <button
-        onClick={() => setComposeOpen(true)}
-        title="Write a post"
+        onClick={() => { if (!fabDrag.current.moved) setComposeOpen(true); }}
+        onPointerDown={fabPointerDown}
+        onPointerMove={fabPointerMove}
+        onPointerUp={fabPointerUp}
+        title={fabCooldown > 0 ? `Next post in ${fabCooldown}s` : "Write a post — drag to move"}
         style={{
-          position: "fixed", bottom: 24, left: 24,
-          background: "var(--accent)", color: "#fff",
-          border: "none", borderRadius: 99,
+          position: "fixed", bottom: fabPos.bottom, left: fabPos.left,
+          background: fabCooldown > 0 ? "var(--surface2)" : "var(--accent)",
+          color: fabCooldown > 0 ? "var(--muted)" : "#fff",
+          border: fabCooldown > 0 ? "1px solid var(--border)" : "none", borderRadius: 99,
           width: 56, height: 56,
-          fontSize: 24, cursor: "pointer", zIndex: 998,
+          fontSize: 24, cursor: "grab", zIndex: 998,
           display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: "0 4px 20px var(--glow)",
-          transition: "transform 0.15s",
+          boxShadow: fabCooldown > 0 ? "none" : "0 4px 20px var(--glow)",
+          transition: "background 0.2s, color 0.2s",
+          touchAction: "none",
         }}
-        onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.08)"; }}
-        onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
       >
-        <Icon.Edit size={20} />
+        {fabCooldown > 0 ? <span style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 15 }}>{fabCooldown}</span> : <Icon.Edit size={20} />}
       </button>
-
-      {/* Donate — smaller floating button, bottom right */}
-      <a
-        href="https://paystack.shop/pay/donatetowhispr-app"
-        target="_blank"
-        rel="noopener noreferrer"
-        title="Support Whispr"
-        style={{
-          position: "fixed", bottom: 24, right: 24,
-          background: "#FFDD00", color: "#000",
-          borderRadius: 99, padding: "8px 14px",
-          fontWeight: 700, fontSize: 12,
-          textDecoration: "none", zIndex: 998,
-          display: "flex", alignItems: "center", gap: 5,
-          boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
-          transition: "transform 0.15s",
-        }}
-        onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.05)"; }}
-        onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; }}
-      >
-        <Icon.Coffee size={14} /> Donate
-      </a>
 
       {/* Compose Bottom Sheet */}
       {composeOpen && (
@@ -606,9 +695,10 @@ export default function Feed({ currentUser, isAdmin, theme, toggleTheme, mainten
                 bannedWords={bannedWords}
                 onNewPost={(post) => {
                   setPosts(prev => [post, ...prev.filter(p => p.id !== post.id)]);
-                  setNewPostsAvailable(false);
                   latestPostCreatedAt.current = post.createdAt;
-                  setComposeOpen(false);
+                  startFabCooldown(Math.ceil(POST_COOLDOWN_MS / 1000));
+                  // Let the "Posted!" confirmation show briefly before closing the sheet
+                  setTimeout(() => setComposeOpen(false), 900);
                 }}
               />
             </div>

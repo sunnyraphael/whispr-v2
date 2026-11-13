@@ -185,6 +185,58 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
   const deletePost = async (id) => { if (!window.confirm("Delete post?")) return; await updateDoc(doc(db, "posts", id), { deleted: true }); };
   const resolveReport = async (id) => { await updateDoc(doc(db, "reports", id), { status: "resolved" }); };
   const dismissReport = async (id) => { await updateDoc(doc(db, "reports", id), { status: "dismissed" }); };
+
+  // Thanks the person who filed the report — closes the loop so reporting
+  // doesn't feel like shouting into a void. Reuses the same notification
+  // shape already used for ban notices, so NotificationBell needs no new logic.
+  const thankReporter = async (report) => {
+    if (!report.reporterUid) return; // older reports may predate this field
+    await addDoc(collection(db, "notifications"), {
+      toUid: report.reporterUid,
+      type: "report_thanks",
+      message: "Thank you for reporting. The Whispr team has reviewed it.",
+      createdAt: serverTimestamp(),
+      read: false,
+    });
+  };
+
+  // Report row actions — each resolves the report, notifies the reporter,
+  // and takes the chosen action against the reported content/user.
+  const reportDeleteOnly = async (report) => {
+    if (report.type === "post" && report.targetId) await updateDoc(doc(db, "posts", report.targetId), { deleted: true });
+    await thankReporter(report);
+    await resolveReport(report.id);
+  };
+  const reportDeleteAndWarn = async (report) => {
+    if (report.type === "post" && report.targetId) await updateDoc(doc(db, "posts", report.targetId), { deleted: true });
+    if (report.targetUid) {
+      await addDoc(collection(db, "notifications"), {
+        toUid: report.targetUid,
+        type: "warn",
+        message: "A post of yours was removed for violating community guidelines. Repeated violations may result in a ban.",
+        createdAt: serverTimestamp(),
+        read: false,
+      });
+    }
+    await thankReporter(report);
+    await resolveReport(report.id);
+  };
+  const reportDeleteAndBan = async (report) => {
+    if (report.type === "post" && report.targetId) await updateDoc(doc(db, "posts", report.targetId), { deleted: true });
+    await thankReporter(report);
+    await resolveReport(report.id);
+    // Open the existing ban modal pre-filled with the report's reason, rather
+    // than duplicating ban logic — same pattern already used for duplicate devices.
+    const reportedUser = users.find(u => u.uid === report.targetUid);
+    if (reportedUser) {
+      setBanModal(reportedUser);
+      setBanDuration("7");
+      setBanUnit("days");
+      setBanReason(`Reported content: ${report.reason || "community guideline violation"}`);
+    } else {
+      alert("Post deleted and reporter thanked, but the reported user's account couldn't be found to ban directly — check the Users tab.");
+    }
+  };
   const postAnnouncement = async () => { if (!newAnnouncement.trim()) return; await addDoc(collection(db, "announcements"), { content: newAnnouncement.trim(), createdAt: serverTimestamp(), active: true }); setNewAnnouncement(""); };
   const deleteAnnouncement = async (id) => { await deleteDoc(doc(db, "announcements", id)); };
   const addCategory = async () => {
@@ -225,7 +277,7 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
   return (
     <div className="admin-page fade-in">
       <div className="admin-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-        <div>
+        <div style={{ minWidth: 0 }}>
           <div className="admin-title" style={{ display: "flex", alignItems: "center", gap: 8 }}><Icon.Settings size={17} /> Admin Panel</div>
           <div className="admin-subtitle">Logged in as {currentUser.username}</div>
         </div>
@@ -338,7 +390,20 @@ export default function AdminPanel({ currentUser, allCategories, setAllCategorie
                   </td>
                   <td><span className={`badge ${r.status === "pending" ? "badge-warn" : r.status === "resolved" ? "badge-success" : "badge-danger"}`}>{r.status}</span></td>
                   <td style={{ color: "var(--muted)" }}>{timeAgo(r.createdAt)}</td>
-                  <td>{r.status === "pending" && <div style={{ display: "flex", gap: 6 }}><button className="btn btn-primary btn-sm" onClick={() => resolveReport(r.id)}>Resolve</button><button className="btn btn-ghost btn-sm" onClick={() => dismissReport(r.id)}>Dismiss</button></div>}</td>
+                  <td>{r.status === "pending" && (
+                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                      <button className="btn btn-danger btn-sm" onClick={() => { if (window.confirm("Delete the reported post?")) reportDeleteOnly(r); }} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <Icon.Trash size={11} /> Delete
+                      </button>
+                      <button className="btn btn-warn btn-sm" onClick={() => { if (window.confirm("Delete the post and warn this user?")) reportDeleteAndWarn(r); }} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <Icon.AlertTriangle size={11} /> Delete + Warn
+                      </button>
+                      <button className="btn btn-danger btn-sm" onClick={() => { if (window.confirm("Delete the post and open the ban dialog for this user?")) reportDeleteAndBan(r); }} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        <Icon.Hammer size={11} /> Delete + Ban
+                      </button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => dismissReport(r.id)}>Dismiss</button>
+                    </div>
+                  )}</td>
                 </tr>
               );
             })}

@@ -25,7 +25,8 @@ export function buildStyles(theme) {
     --radius: 16px; --radius-sm: 8px;
     --shadow: ${dark ? "0 4px 24px rgba(0,0,0,0.4)" : "0 4px 24px rgba(0,0,0,0.12)"};
   }
-  body { background: var(--bg); color: var(--text); font-family: var(--font-body); min-height: 100vh; transition: background 0.3s, color 0.3s; }
+  html { overflow-x: hidden; width: 100%; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-body); min-height: 100vh; overflow-x: hidden; width: 100%; transition: background 0.3s, color 0.3s; }
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 4px; }
@@ -118,8 +119,10 @@ export function buildStyles(theme) {
 
     /* Tabs */
     .tab { padding: 5px 12px; font-size: 12px; }
-    /* Admin tabs — switch to a full-width select dropdown on mobile */
-    .admin-tabs-desktop { display: none; }
+    /* Admin tabs — switch to a full-width select dropdown on mobile.
+       Combined selector (not just .admin-tabs-desktop) so this reliably
+       beats the base .tabs{display:flex} rule regardless of source order. */
+    .tabs.admin-tabs-desktop { display: none; }
     .admin-tabs-mobile { display: block; width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-family: var(--font-body); font-size: 14px; padding: 10px 12px; cursor: pointer; margin-bottom: 16px; }
     /* All admin tables scroll horizontally */
     .admin-table-wrap {
@@ -142,10 +145,11 @@ export function buildStyles(theme) {
     .admin-table-wrap .btn-sm { padding: 4px 8px; font-size: 10px; }
     .admin-page { padding: 12px 8px; }
     .admin-title { font-size: 20px; }
-    .stat-card { padding: 12px; }
-    .stat-num { font-size: 22px; }
-    /* Admin stat cards wrap nicely */
-    .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+    .stat-card { padding: 6px 8px; display: flex; align-items: flex-start; gap: 5px; min-width: 0; }
+    .stat-num { font-size: 14px; flex-shrink: 0; }
+    .stat-label { font-size: 8.5px; line-height: 1.2; margin-top: 1px !important; overflow-wrap: break-word; }
+    /* 2 columns — narrower cards, less risk of overflow, still compact */
+    .stats-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 5px !important; margin-bottom: 14px !important; }
     .section-tab { font-size: 12px; padding: 8px 6px; }
 
     /* Trending numbers */
@@ -177,7 +181,7 @@ export function buildStyles(theme) {
   /* Hide mobile search bar on desktop */
   @media (min-width: 601px) {
     .mobile-search-bar { display: none; }
-    .admin-tabs-desktop { display: flex !important; }
+    .tabs.admin-tabs-desktop { display: flex !important; }
     .admin-tabs-mobile { display: none !important; }
   }
 

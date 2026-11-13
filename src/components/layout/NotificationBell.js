@@ -68,6 +68,8 @@ export default function NotificationBell({ currentUser, onPostClick }) {
     if (n.type === "reply_comment") return `${n.fromUsername} replied to your comment`;
     if (n.type === "react") return `${n.fromUsername} reacted ${n.emoji} to your post`;
     if (n.type === "ban") return n.message;
+    if (n.type === "report_thanks") return n.message || "Thank you for reporting. The Whispr team has reviewed it.";
+    if (n.type === "warn") return n.message;
     return "New notification";
   };
   const typeIcon = (n) => {
@@ -75,6 +77,8 @@ export default function NotificationBell({ currentUser, onPostClick }) {
     if (n.type === "comment" || n.type === "reply_comment") return <Icon.Message size={13} />;
     if (n.type === "react") return <span style={{ fontSize: 13 }}>{n.emoji}</span>;
     if (n.type === "ban") return <Icon.Flag size={13} />;
+    if (n.type === "report_thanks") return <Icon.Check size={13} />;
+    if (n.type === "warn") return <Icon.AlertTriangle size={13} />;
     return <Icon.Bell size={13} />;
   };
   return (

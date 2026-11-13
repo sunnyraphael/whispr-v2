@@ -10,6 +10,7 @@ export default function ComposePost({ currentUser, allCategories, bannedWords, o
   const [content, setContent] = useState("");
   const [category, setCategory] = useState("random");
   const [loading, setLoading] = useState(false);
+  const [justPosted, setJustPosted] = useState(false);
   const [error, setError] = useState("");
   const [showFirstPostMsg, setShowFirstPostMsg] = useState(false);
   const [cooldownLeft, setCooldownLeft] = useState(0);
@@ -115,6 +116,9 @@ export default function ComposePost({ currentUser, allCategories, bannedWords, o
       }
       setContent(""); setPollOptions(["", ""]); setIsPoll(false); setIsDisappearing(false);
       startCooldown(Math.ceil(POST_COOLDOWN_MS / 1000));
+      // Show a brief "Posted!" confirmation so submitting doesn't feel silent/uncertain
+      setJustPosted(true);
+      setTimeout(() => setJustPosted(false), 1800);
     } catch (err) {
       console.error("Post submit error:", err);
       setError("Failed to publish post. Please check your connection and try again.");
@@ -167,7 +171,9 @@ export default function ComposePost({ currentUser, allCategories, bannedWords, o
             <Icon.Clock size={12} /> 24h
           </button>
           <span className={`char-count ${chars > MAX * 0.9 ? "warn" : ""} ${chars > MAX ? "over" : ""}`} style={{ marginLeft: "auto" }}>{chars}/{MAX}</span>
-          <button className="btn btn-primary" onClick={submit} disabled={loading || !content.trim() || chars > MAX || cooldownLeft > 0}>{loading ? <Spinner /> : "Post"}</button>
+          <button className="btn btn-primary" onClick={submit} disabled={loading || justPosted || !content.trim() || chars > MAX || cooldownLeft > 0} style={{ display: "flex", alignItems: "center", gap: 6, background: justPosted ? "var(--success)" : undefined }}>
+            {loading ? <Spinner /> : justPosted ? <><Icon.Check size={13} /> Posted!</> : "Post"}
+          </button>
         </div>
       </div>
     </div>

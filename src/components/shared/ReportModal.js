@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { auth } from "../../firebase";
+import { Icon } from "./Icons";
 
 export default function ReportModal({ type, targetId, targetUid, reporterUid, onClose }) {
   const reasons = ["Hate speech", "Harassment", "Spam", "Misinformation", "Illegal content", "Other"];
@@ -18,6 +19,7 @@ export default function ReportModal({ type, targetId, targetUid, reporterUid, on
           type,
           targetId,
           targetUid: targetUid || null,
+          reporterUid: reporterUid || null,
           reason,
         }),
       });
@@ -35,9 +37,9 @@ export default function ReportModal({ type, targetId, targetUid, reporterUid, on
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal fade-in" style={{ marginTop: 60 }}>
-        <div className="modal-header"><span className="modal-title">Report {type}</span><button className="close-btn" onClick={onClose}>✕</button></div>
+        <div className="modal-header"><span className="modal-title">Report {type}</span><button className="close-btn" onClick={onClose}><Icon.X size={13} /></button></div>
         <div className="modal-body">
-          {submitted ? <div className="alert alert-success">✅ Report submitted. Our team will review it.</div> : (
+          {submitted ? <div className="alert alert-success" style={{ display: "flex", alignItems: "center", gap: 8 }}><Icon.Check size={13} /> Report submitted. Our team will review it.</div> : (
             <>
               <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>Why are you reporting this {type}?</p>
               <div className="report-options">{reasons.map(r => <label key={r} className="report-option"><input type="radio" name="reason" checked={reason === r} onChange={() => setReason(r)} /><span style={{ fontSize: 14 }}>{r}</span></label>)}</div>
